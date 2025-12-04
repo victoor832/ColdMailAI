@@ -48,12 +48,21 @@ export function getCreditsForPlan(plan: string): number {
 }
 
 export async function updateUserCredits(userId: number, creditsToAdd: number) {
-  const { db } = await import('./db');
   try {
-    await db.execute({
-      sql: 'UPDATE users SET credits = credits + ? WHERE id = ?',
-      args: [creditsToAdd, userId],
-    });
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { error } = await supabase
+      .from('users')
+      .update({ credits: supabase.rpc('increment_by', { increment_by: creditsToAdd }) })
+      .eq('id', userId);
+
+    if (error) {
+      throw error;
+    }
   } catch (error) {
     console.error('Update credits error:', error);
     throw error;

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { LoadingButton } from '@/components/ui/loading';
 
 export default function RespondPage() {
   const { data: session, status } = useSession();
@@ -112,8 +113,8 @@ export default function RespondPage() {
             />
           </div>
 
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Analyzing...' : 'Generate Reply'}
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? <LoadingButton>Analyzing Response...</LoadingButton> : 'Generate Reply'}
           </Button>
         </form>
 

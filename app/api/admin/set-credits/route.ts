@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { SetCreditsSchema, validateInput } from '@/lib/validation';
+import { AppError, handleError, logAction } from '@/lib/error-handler';
 
 // Use service role key for admin operations
 const supabase = createClient(
@@ -7,16 +9,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
+
 export async function POST(req: NextRequest) {
   try {
-    const { email, credits } = await req.json();
+    // Check for API key in header
+    const apiKey = req.headers.get('X-Admin-API-Key');
 
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      );
+    if (!apiKey || apiKey !== ADMIN_API_KEY) {
+      logAction('UNAUTHORIZED_ADMIN_ACCESS', -1, { reason: 'Invalid API key' });
+      throw new AppError(401, 'Unauthorized: Invalid or missing API key', 'UNAUTHORIZED');
     }
+
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      throw new AppError(400, 'Invalid JSON format', 'INVALID_JSON');
+    }
+
+    // Validate against schema
+    const { email, credits } = await validateInput(SetCreditsSchema, body);
 
     // Find user by email
     const { data: user, error: queryError } = await supabase
@@ -26,16 +39,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (queryError || !user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+      logAction('USER_NOT_FOUND_ADMIN', -1, { email });
+      throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
     }
 
     // Update credits
     const { data: updatedUser, error: updateError } = await supabase
       .from('users')
-      .update({ credits: credits || 999999 })
+      .update({ credits })
       .eq('id', user.id)
       .select();
 
@@ -43,17 +54,26 @@ export async function POST(req: NextRequest) {
       throw updateError;
     }
 
+    // Log the admin action
+    logAction('ADMIN_CREDITS_UPDATED', user.id, {
+      email,
+      oldCredits: user.credits,
+      newCredits: credits,
+    });
+
     return NextResponse.json({
       success: true,
       message: `Credits updated for ${email}`,
       user: updatedUser[0],
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return handleError(error);
+    }
+
     console.error('Admin update credits error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
+    return handleError(
+      new AppError(500, 'Failed to update credits', 'ADMIN_UPDATE_FAILED')
     );
   }
 }

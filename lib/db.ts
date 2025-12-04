@@ -23,14 +23,11 @@ export async function queryUser(email: string) {
       .eq('email', email)
       .single();
 
-    if (error) {
-      console.error('Query user error:', error);
-      return null;
-    }
+    if (error) throw error;
     return data;
   } catch (error) {
     console.error('Query user error:', error);
-    return null;
+    throw error;
   }
 }
 
@@ -73,7 +70,7 @@ export async function updateUserCredits(userId: number, creditsToAdd: number) {
   }
 }
 
-export async function getUserCredits(userId: number) {
+export async function getUserCredits(userId: number): Promise<number> {
   try {
     const { data, error } = await supabase
       .from('users')
@@ -81,14 +78,11 @@ export async function getUserCredits(userId: number) {
       .eq('id', userId)
       .single();
 
-    if (error) {
-      console.error('Get credits error:', error);
-      return 0;
-    }
+    if (error) throw error;
     return data?.credits || 0;
   } catch (error) {
     console.error('Get credits error:', error);
-    return 0;
+    throw error;
   }
 }
 
@@ -117,7 +111,10 @@ export async function saveUserResponse(
   angleUsed: string,
   objectionType: string,
   sentiment: string,
-  urgency: string
+  urgency: string,
+  originalEmail: string,
+  prospectResponse: string,
+  generatedReplies: any
 ) {
   try {
     const { error } = await supabase
@@ -129,6 +126,9 @@ export async function saveUserResponse(
           objection_type: objectionType,
           sentiment,
           urgency,
+          original_email: originalEmail,
+          prospect_response: prospectResponse,
+          generated_replies: generatedReplies,
         },
       ]);
 
@@ -136,6 +136,65 @@ export async function saveUserResponse(
   } catch (error) {
     console.error('Save user response error:', error);
     throw error;
+  }
+}
+
+export async function saveUserResearch(
+  userId: number,
+  url: string,
+  service: string,
+  angles: any
+) {
+  try {
+    const { error } = await supabase
+      .from('user_researches')
+      .insert([
+        {
+          user_id: userId,
+          url,
+          service,
+          angles,
+        },
+      ]);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Save user research error:', error);
+    throw error;
+  }
+}
+
+export async function getUserResearchHistory(userId: number) {
+  try {
+    const { data, error } = await supabase
+      .from('user_researches')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Get research history error:', error);
+    throw error;
+  }
+}
+
+export async function getUserResponseHistory(userId: number) {
+  try {
+    const { data, error } = await supabase
+      .from('user_responses')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Get response history error:', error);
+    return [];
   }
 }
 
@@ -199,6 +258,57 @@ export async function getGlobalResponseStats() {
   } catch (error) {
     console.error('Get global stats error:', error);
     return null;
+  }
+}
+
+export async function updateResearchEmails(
+  userId: number,
+  url: string,
+  generatedEmails: any
+) {
+  try {
+    const { error } = await supabase
+      .from('user_researches')
+      .update({ generated_emails: generatedEmails })
+      .eq('user_id', userId)
+      .eq('url', url)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Update research emails error:', error);
+    throw error;
+  }
+}
+
+export async function deleteUserResearch(userId: number, researchId: number) {
+  try {
+    const { error } = await supabase
+      .from('user_researches')
+      .delete()
+      .eq('id', researchId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Delete research error:', error);
+    throw error;
+  }
+}
+
+export async function deleteUserResponse(userId: number, responseId: number) {
+  try {
+    const { error } = await supabase
+      .from('user_responses')
+      .delete()
+      .eq('id', responseId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Delete response error:', error);
+    throw error;
   }
 }
 

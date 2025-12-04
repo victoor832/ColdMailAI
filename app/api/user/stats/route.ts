@@ -1,37 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getUserCredits, db } from '@/lib/db';
+import { getUserCredits } from '@/lib/db';
+import { createClient } from '@supabase/supabase-js';
+import {
+  handleError,
+  AppError,
+  logAction,
+  withRetry,
+} from '@/lib/error-handler';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(req: NextRequest) {
   try {
+    // Authenticate
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      throw new AppError(401, 'Unauthorized. Please log in.', 'UNAUTHORIZED');
     }
 
     const userId = parseInt(session.user.id);
-    const credits = await getUserCredits(userId);
 
-    // Get responses count
-    const responsesResult = await db.execute({
-      sql: 'SELECT COUNT(*) as count FROM user_responses WHERE user_id = ?',
-      args: [userId],
-    });
+    // Fetch credits with retry
+    let credits: number = 0;
+    try {
+      credits = await withRetry(() => getUserCredits(userId), 2);
+    } catch (error) {
+      logAction('GET_CREDITS_FAILED', userId, { error: String(error) });
+      throw new AppError(
+        500,
+        'Failed to fetch credits. Please try again.',
+        'CREDITS_FETCH_ERROR'
+      );
+    }
 
-    const responsesCount = (responsesResult.rows[0] as any).count || 0;
+    // Fetch user responses count
+    let responsesCount = 0;
+    try {
+      const { count: respCount, error: responsesError } = await supabase
+        .from('user_responses')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      if (responsesError) {
+        logAction('GET_RESPONSES_COUNT_FAILED', userId, { error: responsesError.message });
+      } else {
+        responsesCount = respCount || 0;
+      }
+    } catch (error) {
+      logAction('GET_RESPONSES_COUNT_ERROR', userId, { error: String(error) });
+      // Don't fail - this is secondary data
+    }
+
+    // Fetch user research count
+    let researchCount = 0;
+    try {
+      const { count: resCount, error: researchError } = await supabase
+        .from('user_researches')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      if (researchError) {
+        logAction('GET_RESEARCH_COUNT_FAILED', userId, { error: researchError.message });
+      } else {
+        researchCount = resCount || 0;
+      }
+    } catch (error) {
+      logAction('GET_RESEARCH_COUNT_ERROR', userId, { error: String(error) });
+      // Don't fail - this is secondary data
+    }
+
+    logAction('STATS_RETRIEVED', userId, { credits, responsesCount, researchCount });
 
     return NextResponse.json({
       credits,
       responsesCount,
+      researchCount,
       email: session.user.email,
     });
   } catch (error) {
-    console.error('Get stats error:', error);
-    return NextResponse.json(
-      { error: 'An error occurred' },
-      { status: 500 }
-    );
+    return handleError(error);
   }
 }

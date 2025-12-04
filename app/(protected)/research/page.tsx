@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { LoadingSpinner, LoadingButton } from '@/components/ui/loading';
 
 interface Angle {
   type: string;
@@ -135,8 +136,8 @@ export default function ResearchPage() {
             />
           </div>
 
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Analyzing...' : 'Analyze Prospect'}
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? <LoadingButton>Analyzing Prospect...</LoadingButton> : 'Analyze Prospect'}
           </Button>
         </form>
 
@@ -173,8 +174,9 @@ export default function ResearchPage() {
                 <Button
                   onClick={() => handleGenerateEmails(angle)}
                   disabled={loading}
+                  className="w-full"
                 >
-                  Generate Emails for This Angle
+                  {loading ? <LoadingButton>Generating Emails...</LoadingButton> : 'Generate Emails for This Angle'}
                 </Button>
               </div>
             ))}

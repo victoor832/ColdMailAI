@@ -1,32 +1,66 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Environment variables (NEVER commit these)
+.env
 .env.local
 .env.*.local
-.env
+.env.*.txt
+
+# Build and output
+.next/
+out/
+dist/
+build/
+.vercel
 .builder-log.md
-.env.example
-.npmrc
+
+# Package managers
 pnpm-lock.yaml
 package-lock.json
 yarn.lock
 yarn-error.log
 yarn-debug.log
-*.md
-!README.md
-*.txt
-*.sh
-dist/
-build/
-.next/
-out/
-*.pem
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.vercel
-.idea
-.vscode
-*.swp
-*.swo
-*~
+
+# SSL/TLS
+*.pem
+
+# Database and config (keep schema files tracked for collaboration)
+# schema.sql - UNCOMMENT if you want to track it
+# schema.stripe.sql - UNCOMMENT if you want to track it
+
+# Test/script outputs (keep test files, exclude outputs)
+*.test.txt
+test-output/
+
+# Keep everything else (documentation, config files)
+# Remember: ALL source files should be tracked
+
+# Include the entire docs folder in the repository
+docs/
+docs/**
+*.md 
+!README.md
+*.txt
+*.sql
+*.sh

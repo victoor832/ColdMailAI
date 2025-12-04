@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signUp } from 'next-auth/react';
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,7 @@ export default function SignUpPage() {
         return;
       }
 
-      const result = await signUp('credentials', {
+      const result = await signIn('credentials', {
         email,
         password,
         redirect: false,
