@@ -49,6 +49,11 @@ export async function POST(req: NextRequest) {
         await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
         break;
 
+      case 'checkout.session.completed':
+        // Handle checkout session (when total is 0 due to promo code, no payment_intent)
+        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
+
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
@@ -296,6 +301,126 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     }
   } catch (error) {
     console.error('Subscription deletion handler error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Handle checkout session completed
+ * This is called when checkout.session.completed event is received
+ * (e.g., when total is 0 due to promo code, no payment_intent is created)
+ */
+async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+  try {
+    // Only process if payment_status is paid
+    if (session.payment_status !== 'paid') {
+      logAction('CHECKOUT_SESSION_NOT_PAID', -1, { 
+        sessionId: session.id,
+        paymentStatus: session.payment_status,
+      });
+      return;
+    }
+
+    // Get user ID from metadata
+    const userId = session.metadata?.user_id;
+
+    if (!userId) {
+      logAction('CHECKOUT_SESSION_NO_USER_ID', -1, { sessionId: session.id });
+      return;
+    }
+
+    // Get user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, email, credits')
+      .eq('id', parseInt(userId))
+      .single();
+
+    if (userError || !user) {
+      logAction('CHECKOUT_SESSION_USER_NOT_FOUND', -1, { userId });
+      throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Get product info from metadata
+    const priceId = session.metadata?.stripe_price_id;
+    const productId = session.metadata?.stripe_product_id;
+    const plan = session.metadata?.plan;
+
+    if (!priceId && !productId) {
+      logAction('CHECKOUT_SESSION_NO_PRODUCT_INFO', user.id, { sessionId: session.id });
+      return;
+    }
+
+    // Query stripe_products table for credits
+    let query = supabase.from('stripe_products').select('credit_value');
+
+    if (priceId) {
+      query = query.eq('stripe_price_id', priceId);
+    } else if (productId) {
+      query = query.eq('stripe_product_id', productId);
+    }
+
+    const { data: product, error: productError } = await query.single();
+
+    if (productError || !product) {
+      logAction('PRODUCT_NOT_IN_DB', user.id, { productId, priceId });
+      throw new AppError(404, 'Product mapping not found', 'PRODUCT_NOT_FOUND');
+    }
+
+    const creditsToAdd = product.credit_value;
+
+    logAction('CHECKOUT_SESSION_PROCESSING', user.id, {
+      sessionId: session.id,
+      currentCredits: user.credits,
+      creditsToAdd,
+      plan,
+      discount: session.total_details?.amount_discount || 0,
+    });
+
+    // Update user credits
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        credits: user.credits + creditsToAdd,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id)
+      .select('credits')
+      .single();
+
+    if (updateError) {
+      logAction('CREDITS_UPDATE_ERROR', user.id, { error: updateError.message });
+      throw updateError;
+    }
+
+    logAction('CHECKOUT_SESSION_CREDITS_ADDED', user.id, {
+      sessionId: session.id,
+      creditsAdded: creditsToAdd,
+      newCredits: updatedUser?.credits || (user.credits + creditsToAdd),
+      amountTotal: session.amount_total,
+      discount: session.total_details?.amount_discount || 0,
+    });
+
+    // Create payment record in payments table
+    const { error: paymentInsertError } = await supabase.from('payments').insert({
+      user_id: user.id,
+      stripe_payment_intent_id: session.id, // Use session ID as reference
+      stripe_customer_id: session.customer as string || '',
+      stripe_product_id: productId || null,
+      stripe_price_id: priceId || null,
+      amount: session.amount_total || 0,
+      currency: session.currency || 'eur',
+      credits_added: creditsToAdd,
+      status: 'succeeded',
+      created_at: new Date().toISOString(),
+    });
+
+    if (paymentInsertError) {
+      logAction('PAYMENT_INSERT_FAILED', user.id, { error: paymentInsertError.message });
+      throw paymentInsertError;
+    }
+  } catch (error) {
+    console.error('Checkout session handler error:', error);
     throw error;
   }
 }
