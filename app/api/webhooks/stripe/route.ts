@@ -518,6 +518,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       await supabase
         .from('users')
         .update({
+          plan: plan, // Sync plan field to match subscription_plan
           subscription_plan: plan,
           subscription_status: 'active',
           subscription_monthly_credits: monthlyCredits === null ? null : (monthlyCredits as number),

@@ -9,8 +9,11 @@ import { LoadingButton, LoadingPage } from '@/components/ui/loading';
 import { useEffect, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
-// Format credits for display (e.g., 10000049 -> 10M)
-function formatCredits(credits: number): string {
+// Format credits for display (e.g., 10000049 -> 10M, null -> Unlimited)
+function formatCredits(credits: number | null): string {
+  if (credits === null) {
+    return 'Unlimited';
+  }
   if (credits >= 1000000) {
     return (credits / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
   }
@@ -27,7 +30,7 @@ export default function DashboardPage() {
     research: [],
     responses: [],
   });
-  const [credits, setCredits] = useState<number>(0);
+  const [credits, setCredits] = useState<number | null>(0);
   const [selectedResearch, setSelectedResearch] = useState<any>(null);
   const [selectedResponse, setSelectedResponse] = useState<any>(null);
   const [emails, setEmails] = useState<any>(null);
@@ -176,7 +179,7 @@ export default function DashboardPage() {
         </p>
 
         {/* Enhanced Low Credits Warning Banner */}
-        {credits <= 1 && credits > 0 && (
+        {credits !== null && credits <= 1 && credits > 0 && (
           <div className="mb-8 relative overflow-hidden">
             {/* Animated background gradient */}
             <div className="absolute inset-0 bg-gradient-to-r from-orange-100 via-red-100 to-pink-100 dark:from-orange-900/30 dark:via-red-900/30 dark:to-pink-900/30 animate-pulse"></div>
