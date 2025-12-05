@@ -102,6 +102,11 @@ export async function POST(req: NextRequest) {
           await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
           break;
 
+        case 'customer.subscription.created':
+        case 'customer.subscription.updated':
+          await handleSubscriptionCreatedOrUpdated(event.data.object as Stripe.Subscription);
+          break;
+
         case 'customer.subscription.deleted':
           await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
           break;
@@ -481,7 +486,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const { error: paymentInsertError } = await supabase.from('payments').insert({
       user_id: user.id,
       stripe_payment_intent_id: session.id, // Use session ID as reference
-      stripe_customer_id: session.customer as string || '',
+      stripe_customer_id: (session.customer as string) || '',
       stripe_product_id: productId || null,
       stripe_price_id: priceId || null,
       amount: session.amount_total || 0,
@@ -496,11 +501,138 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       // Log but don't fail - credits were already updated
       return;
     }
+
+    // Update subscription info if this is Unlimited or monthly plan
+    const plan = session.metadata?.plan;
+    if (plan === 'unlimited' || plan === 'pro' || plan === 'starter') {
+      const planCredits: Record<string, number> = {
+        starter: 10,
+        pro: 25,
+        unlimited: 9999999,
+      };
+
+      const monthlyCredits = planCredits[plan] || 0;
+      const periodStart = new Date();
+      const periodEnd = new Date();
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+      await supabase
+        .from('users')
+        .update({
+          subscription_plan: plan,
+          subscription_status: 'active',
+          subscription_monthly_credits: monthlyCredits,
+          subscription_current_period_start: periodStart.toISOString(),
+          subscription_current_period_end: periodEnd.toISOString(),
+        })
+        .eq('id', user.id);
+
+      logAction('SUBSCRIPTION_PLAN_SET', user.id, {
+        plan,
+        monthlyCredits,
+        periodEnd: periodEnd.toISOString(),
+      });
+    }
   } catch (error) {
     console.error('Checkout session handler error:', error);
     logAction('CHECKOUT_SESSION_EXCEPTION', -1, {
       error: error instanceof Error ? error.message : String(error),
     });
     // Don't re-throw - let the outer handler catch it
+  }
+}
+
+/**
+ * Handle subscription created or updated
+ * When user purchases a subscription plan (Starter, Pro, Unlimited)
+ */
+async function handleSubscriptionCreatedOrUpdated(subscription: Stripe.Subscription) {
+  try {
+    const customerId = subscription.customer as string;
+
+    if (!customerId) {
+      logAction('SUBSCRIPTION_NO_CUSTOMER', -1, { subscriptionId: subscription.id });
+      return;
+    }
+
+    // Find user by stripe_customer_id
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, email, credits')
+      .eq('stripe_customer_id', customerId)
+      .single();
+
+    if (userError || !user) {
+      logAction('SUBSCRIPTION_USER_NOT_FOUND', -1, { customerId });
+      return;
+    }
+
+    // Map subscription status
+    const status = subscription.status; // 'trialing', 'active', 'past_due', 'canceled', 'unpaid'
+    const periodStart = new Date(subscription.current_period_start * 1000);
+    const periodEnd = new Date(subscription.current_period_end * 1000);
+
+    // Get subscription plan from metadata
+    const plan = subscription.metadata?.plan || 'unknown';
+
+    // Map plan to monthly credits
+    const creditMap: Record<string, number> = {
+      starter: 10,
+      pro: 25,
+      unlimited: 9999999, // Effectively unlimited
+    };
+
+    const monthlyCredits = creditMap[plan] || 0;
+
+    logAction('SUBSCRIPTION_PROCESSING', user.id, {
+      plan,
+      status,
+      monthlyCredits,
+      periodEnd: periodEnd.toISOString(),
+    });
+
+    // Update user subscription info
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        subscription_status: status === 'active' || status === 'trialing' ? 'active' : status,
+        subscription_plan: plan,
+        stripe_subscription_id: subscription.id,
+        subscription_current_period_start: periodStart.toISOString(),
+        subscription_current_period_end: periodEnd.toISOString(),
+        subscription_monthly_credits: monthlyCredits,
+        credits: monthlyCredits, // Set credits to monthly allowance
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      logAction('SUBSCRIPTION_UPDATE_ERROR', user.id, { error: updateError.message });
+      return;
+    }
+
+    logAction('SUBSCRIPTION_UPDATED', user.id, {
+      plan,
+      monthlyCredits,
+      newCredits: monthlyCredits,
+    });
+
+    // Log to webhook_logs
+    await supabase.from('webhook_logs').insert({
+      event_type: 'customer.subscription.updated',
+      event_id: subscription.id,
+      status: 'processed',
+      user_id: user.id,
+      payload: {
+        plan,
+        monthlyCredits,
+        subscriptionStatus: status,
+      },
+    });
+  } catch (error) {
+    console.error('Subscription handler error:', error);
+    logAction('SUBSCRIPTION_EXCEPTION', -1, {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
