@@ -72,9 +72,25 @@ export async function POST(req: NextRequest) {
 /**
  * Handle successful payment
  * Extracts product info and credits, updates user
+ * Uses idempotency to prevent double-processing
  */
 async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
   try {
+    // Check if this payment was already processed
+    const { data: existingPayment, error: checkError } = await supabase
+      .from('payments')
+      .select('id, credits_added')
+      .eq('stripe_payment_intent_id', paymentIntent.id)
+      .single();
+
+    if (existingPayment) {
+      logAction('PAYMENT_ALREADY_PROCESSED', -1, {
+        paymentIntentId: paymentIntent.id,
+        creditsAdded: existingPayment.credits_added,
+      });
+      return; // Already processed, don't process again
+    }
+
     // Get customer ID - may not exist in test events
     const customerId = paymentIntent.customer as string | null;
     
@@ -160,26 +176,33 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
 
     const creditsToAdd = product.credit_value;
 
-    // Update user credits
-    const newCredits = user.credits + creditsToAdd;
-    const { error: updateError } = await supabase
+    logAction('PAYMENT_PROCESSING', user.id, {
+      paymentIntentId: paymentIntent.id,
+      currentCredits: user.credits,
+      creditsToAdd: creditsToAdd,
+      expectedNewTotal: user.credits + creditsToAdd,
+    });
+
+    // Update user credits - use a direct update with returning
+    const { data: updatedUser, error: updateError } = await supabase
       .from('users')
-      .update({ credits: newCredits })
-      .eq('id', user.id);
+      .update({ 
+        credits: user.credits + creditsToAdd,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id)
+      .select('credits')
+      .single();
 
     if (updateError) {
+      logAction('CREDITS_UPDATE_ERROR', user.id, { error: updateError.message });
       throw updateError;
     }
 
-    // Log successful payment
-    logAction('PAYMENT_SUCCESS', user.id, {
+    logAction('CREDITS_UPDATED', user.id, {
       paymentIntentId: paymentIntent.id,
-      productId,
-      priceId,
       creditsAdded: creditsToAdd,
-      newTotal: newCredits,
-      amount: paymentIntent.amount,
-      currency: paymentIntent.currency,
+      newCredits: updatedUser?.credits || (user.credits + creditsToAdd),
     });
 
     // Create payment record in payments table
