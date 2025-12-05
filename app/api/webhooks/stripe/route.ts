@@ -40,26 +40,35 @@ export async function POST(req: NextRequest) {
     logAction('STRIPE_WEBHOOK_RECEIVED', -1, { eventType: event.type, eventId: event.id });
 
     // Handle different event types
-    switch (event.type) {
-      case 'payment_intent.succeeded':
-        await handlePaymentSuccess(event.data.object as Stripe.PaymentIntent);
-        break;
+    try {
+      switch (event.type) {
+        case 'payment_intent.succeeded':
+          await handlePaymentSuccess(event.data.object as Stripe.PaymentIntent);
+          break;
 
-      case 'payment_intent.payment_failed':
-        await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
-        break;
+        case 'payment_intent.payment_failed':
+          await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
+          break;
 
-      case 'checkout.session.completed':
-        // Handle checkout session (when total is 0 due to promo code, no payment_intent)
-        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
-        break;
+        case 'checkout.session.completed':
+          // Handle checkout session (when total is 0 due to promo code, no payment_intent)
+          await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+          break;
 
-      case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
-        break;
+        case 'customer.subscription.deleted':
+          await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+          break;
 
-      default:
-        logAction('STRIPE_WEBHOOK_UNHANDLED', -1, { eventType: event.type });
+        default:
+          logAction('STRIPE_WEBHOOK_UNHANDLED', -1, { eventType: event.type });
+      }
+    } catch (handlerError) {
+      console.error(`Handler error for event type ${event.type}:`, handlerError);
+      logAction('STRIPE_HANDLER_ERROR', -1, { 
+        eventType: event.type, 
+        error: handlerError instanceof Error ? handlerError.message : String(handlerError)
+      });
+      // Don't throw - still return success to Stripe to avoid infinite retries
     }
 
     return NextResponse.json({ success: true, received: true });
@@ -344,8 +353,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       .single();
 
     if (userError || !user) {
-      logAction('CHECKOUT_SESSION_USER_NOT_FOUND', -1, { userId });
-      throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
+      logAction('CHECKOUT_SESSION_USER_NOT_FOUND', -1, { userId, userError: userError?.message });
+      return; // Return early instead of throwing
     }
 
     // Get product info from metadata
@@ -370,8 +379,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const { data: product, error: productError } = await query.single();
 
     if (productError || !product) {
-      logAction('PRODUCT_NOT_IN_DB', user.id, { productId, priceId });
-      throw new AppError(404, 'Product mapping not found', 'PRODUCT_NOT_FOUND');
+      logAction('PRODUCT_NOT_IN_DB', user.id, { productId, priceId, productError: productError?.message });
+      return; // Return early instead of throwing
     }
 
     const creditsToAdd = product.credit_value;
@@ -397,7 +406,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     if (updateError) {
       logAction('CREDITS_UPDATE_ERROR', user.id, { error: updateError.message });
-      throw updateError;
+      return; // Return early instead of throwing
     }
 
     logAction('CHECKOUT_SESSION_CREDITS_ADDED', user.id, {
@@ -424,10 +433,14 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     if (paymentInsertError) {
       logAction('PAYMENT_INSERT_FAILED', user.id, { error: paymentInsertError.message });
-      throw paymentInsertError;
+      // Log but don't fail - credits were already updated
+      return;
     }
   } catch (error) {
     console.error('Checkout session handler error:', error);
-    throw error;
+    logAction('CHECKOUT_SESSION_EXCEPTION', -1, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // Don't re-throw - let the outer handler catch it
   }
 }
