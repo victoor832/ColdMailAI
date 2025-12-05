@@ -70,7 +70,7 @@ export async function updateUserCredits(userId: number, creditsToAdd: number) {
   }
 }
 
-export async function getUserCredits(userId: number): Promise<number> {
+export async function getUserCredits(userId: number): Promise<number | null> {
   try {
     const { data, error } = await supabase
       .from('users')
@@ -79,7 +79,8 @@ export async function getUserCredits(userId: number): Promise<number> {
       .single();
 
     if (error) throw error;
-    return data?.credits || 0;
+    // Return null for unlimited users, 0 if undefined
+    return data?.credits ?? 0;
   } catch (error) {
     console.error('Get credits error:', error);
     throw error;

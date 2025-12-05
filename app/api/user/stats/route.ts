@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const userId = parseInt(session.user.id);
 
     // Fetch credits with retry
-    let credits: number = 0;
+    let credits: number | null = 0;
     try {
       credits = await withRetry(() => getUserCredits(userId), 2);
     } catch (error) {
