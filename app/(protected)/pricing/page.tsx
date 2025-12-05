@@ -48,7 +48,7 @@ export default function PricingPage() {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planName }),
+        body: JSON.stringify({ plan: planName }),
       });
 
       const data = await response.json();
