@@ -24,16 +24,26 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get('stripe-signature');
 
     if (!signature) {
+      logAction('WEBHOOK_MISSING_SIGNATURE', -1, { 
+        headers: Array.from(req.headers.entries()).map(([k, v]) => k),
+      });
       throw new AppError(401, 'Missing stripe signature', 'MISSING_SIGNATURE');
     }
 
     // Verify webhook signature
     let event: Stripe.Event;
     try {
+      if (!webhookSecret) {
+        logAction('WEBHOOK_SECRET_NOT_CONFIGURED', -1, {});
+        throw new Error('STRIPE_WEBHOOK_SECRET is not configured');
+      }
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      logAction('STRIPE_SIGNATURE_INVALID', -1, { error: message });
+      logAction('STRIPE_SIGNATURE_INVALID', -1, { 
+        error: message,
+        signatureLength: signature?.length,
+      });
       throw new AppError(401, `Webhook signature verification failed: ${message}`, 'INVALID_SIGNATURE');
     }
 
