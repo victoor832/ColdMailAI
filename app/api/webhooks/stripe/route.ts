@@ -333,7 +333,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('id, email, credits')
-      .eq('id', parseInt(userId))
+      .eq('id', userId)
       .single();
 
     if (userError || !user) {

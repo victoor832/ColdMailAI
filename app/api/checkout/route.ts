@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       throw new AppError(401, 'Unauthorized. Please log in.', 'UNAUTHORIZED');
     }
 
-    const userId = parseInt(session.user.id);
+    const userId = session.user.id; // Already a UUID string
     const body = await req.json();
     const { plan } = body;
 
