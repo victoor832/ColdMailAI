@@ -65,17 +65,13 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        const monthlyCredits = user.subscription_monthly_credits || null;
-        const periodStart = new Date(now);
-        const periodEnd = new Date(now);
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
-
+        // For unlimited users, ALWAYS set credits to null (not subscription_monthly_credits which might be 0)
         const { error: updateError } = await supabase
           .from('users')
           .update({
-            credits: monthlyCredits,
-            subscription_current_period_start: periodStart.toISOString(),
-            subscription_current_period_end: periodEnd.toISOString(),
+            credits: null, // Always null for unlimited, not subscription_monthly_credits
+            subscription_current_period_start: now.toISOString(),
+            subscription_current_period_end: null, // No period end for unlimited
             updated_at: now.toISOString(),
           })
           .eq('id', user.id);
@@ -92,8 +88,8 @@ export async function GET(req: NextRequest) {
         } else {
           logAction('CRON_RESET_SUCCESS', user.id, {
             plan: user.subscription_plan,
-            creditsReset: monthlyCredits,
-            newPeriodEnd: periodEnd.toISOString(),
+            creditsReset: null,
+            newPeriodEnd: 'never (unlimited)',
           });
           successCount++;
           results.push({
@@ -101,8 +97,8 @@ export async function GET(req: NextRequest) {
             email: user.email,
             status: 'success',
             plan: user.subscription_plan,
-            creditsReset: monthlyCredits,
-            newPeriodEnd: periodEnd.toISOString(),
+            creditsReset: 'unlimited',
+            newPeriodEnd: 'never',
           });
         }
       } catch (error) {
