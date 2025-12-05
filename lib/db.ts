@@ -79,8 +79,8 @@ export async function getUserCredits(userId: number): Promise<number | null> {
       .single();
 
     if (error) throw error;
-    // Return null for unlimited users, 0 if undefined
-    return data?.credits ?? 0;
+    // Return null for unlimited users, preserve whatever value is in DB
+    return data?.credits !== undefined ? data.credits : 0;
   } catch (error) {
     console.error('Get credits error:', error);
     throw error;
