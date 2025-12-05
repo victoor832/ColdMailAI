@@ -503,7 +503,6 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     }
 
     // Update subscription info if this is Unlimited or monthly plan
-    const plan = session.metadata?.plan;
     if (plan === 'unlimited' || plan === 'pro' || plan === 'starter') {
       const planCredits: Record<string, number> = {
         starter: 10,
