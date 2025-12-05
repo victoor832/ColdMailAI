@@ -30,7 +30,7 @@ export default function PricingPage() {
       name: 'Unlimited',
       price: '$29',
       period: '/month',
-      credits: 999999,
+      credits: 1000000,
       planName: 'unlimited',
       features: ['Unlimited Researches', '24/7 support', 'Advanced analytics', 'API access', 'Custom templates'],
       highlighted: false,

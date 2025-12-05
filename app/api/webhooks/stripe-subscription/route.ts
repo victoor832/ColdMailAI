@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const creditMap: Record<string, number> = {
       starter: 10,
       pro: 25,
-      unlimited: 9999999, // Effectively unlimited
+      unlimited: 1000000, // 1M credits per month
     };
 
     const monthlyCredits = creditMap[plan] || 0;

@@ -507,7 +507,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       const planCredits: Record<string, number> = {
         starter: 10,
         pro: 25,
-        unlimited: 9999999,
+        unlimited: 1000000,
       };
 
       const monthlyCredits = planCredits[plan] || 0;
@@ -578,7 +578,7 @@ async function handleSubscriptionCreatedOrUpdated(subscription: Stripe.Subscript
     const creditMap: Record<string, number> = {
       starter: 10,
       pro: 25,
-      unlimited: 9999999, // Effectively unlimited
+      unlimited: 1000000, // 1M credits per month
     };
 
     const monthlyCredits = creditMap[plan] || 0;
