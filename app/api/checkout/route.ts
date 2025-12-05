@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
         stripe_price_id: planInfo.priceId,
       },
       allow_promotion_codes: true, // Allow coupon/promo codes
-      success_url: `${process.env.NEXTAUTH_URL}/protected/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXTAUTH_URL}/protected/pricing`,
+      success_url: `${process.env.NEXTAUTH_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXTAUTH_URL}/pricing`,
       payment_intent_data: {
         metadata: {
           userId: userId.toString(),
