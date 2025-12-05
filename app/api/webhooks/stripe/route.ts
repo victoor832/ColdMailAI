@@ -19,6 +19,10 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
  * Events: payment_intent.succeeded, payment_intent.payment_failed, customer.subscription.deleted
  */
 export async function POST(req: NextRequest) {
+  let eventId = '';
+  let eventType = '';
+  let userId = -1;
+
   try {
     const body = await req.text();
     const signature = req.headers.get('stripe-signature');
@@ -27,6 +31,15 @@ export async function POST(req: NextRequest) {
       logAction('WEBHOOK_MISSING_SIGNATURE', -1, { 
         headers: Array.from(req.headers.entries()).map(([k, v]) => k),
       });
+      
+      // Log to webhook_logs table
+      await supabase.from('webhook_logs').insert({
+        event_type: 'unknown',
+        status: 'failed',
+        error_message: 'Missing stripe signature',
+        payload: { body: body.substring(0, 500) },
+      });
+
       throw new AppError(401, 'Missing stripe signature', 'MISSING_SIGNATURE');
     }
 
@@ -35,6 +48,11 @@ export async function POST(req: NextRequest) {
     try {
       if (!webhookSecret) {
         logAction('WEBHOOK_SECRET_NOT_CONFIGURED', -1, {});
+        await supabase.from('webhook_logs').insert({
+          event_type: 'unknown',
+          status: 'failed',
+          error_message: 'STRIPE_WEBHOOK_SECRET not configured',
+        });
         throw new Error('STRIPE_WEBHOOK_SECRET is not configured');
       }
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
@@ -44,10 +62,29 @@ export async function POST(req: NextRequest) {
         error: message,
         signatureLength: signature?.length,
       });
+      
+      await supabase.from('webhook_logs').insert({
+        event_type: 'unknown',
+        status: 'failed',
+        error_message: `Signature validation failed: ${message}`,
+        payload: { signature_length: signature?.length },
+      });
+
       throw new AppError(401, `Webhook signature verification failed: ${message}`, 'INVALID_SIGNATURE');
     }
 
+    eventId = event.id;
+    eventType = event.type;
+
     logAction('STRIPE_WEBHOOK_RECEIVED', -1, { eventType: event.type, eventId: event.id });
+
+    // Log the event received
+    await supabase.from('webhook_logs').insert({
+      event_type: eventType,
+      event_id: eventId,
+      status: 'received',
+      payload: { type: event.type },
+    });
 
     // Handle different event types
     try {
@@ -425,6 +462,19 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       newCredits: updatedUser?.credits || (user.credits + creditsToAdd),
       amountTotal: session.amount_total,
       discount: session.total_details?.amount_discount || 0,
+    });
+
+    // Log successful processing to webhook_logs
+    await supabase.from('webhook_logs').insert({
+      event_type: 'checkout.session.completed',
+      event_id: session.id,
+      status: 'processed',
+      user_id: user.id,
+      payload: {
+        creditsAdded: creditsToAdd,
+        newCredits: updatedUser?.credits,
+        sessionId: session.id,
+      },
     });
 
     // Create payment record in payments table
