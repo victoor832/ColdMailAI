@@ -23,17 +23,32 @@ export async function GET(req: NextRequest) {
     const now = new Date();
     logAction('CRON_MONTHLY_RESET_START', -1, { timestamp: now.toISOString() });
 
-    // Find all users with active subscriptions whose period has ended
-    const { data: users, error: queryError } = await supabase
+    // Find UNLIMITED users with active subscription (these reset monthly regardless of period_end)
+    const { data: unlimitedUsers, error: unlimitedError } = await supabase
       .from('users')
       .select('id, email, subscription_plan, subscription_monthly_credits, subscription_current_period_end')
       .eq('subscription_status', 'active')
+      .eq('subscription_plan', 'unlimited');
+
+    // Find OTHER plan users whose period has ended (Starter, Pro with period resets)
+    const { data: periodUsers, error: periodError } = await supabase
+      .from('users')
+      .select('id, email, subscription_plan, subscription_monthly_credits, subscription_current_period_end')
+      .eq('subscription_status', 'active')
+      .neq('subscription_plan', 'unlimited')
       .lte('subscription_current_period_end', now.toISOString());
 
-    if (queryError) {
-      logAction('CRON_RESET_QUERY_ERROR', -1, { error: queryError.message });
-      return NextResponse.json({ error: queryError.message }, { status: 500 });
+    if (unlimitedError) {
+      logAction('CRON_UNLIMITED_QUERY_ERROR', -1, { error: unlimitedError.message });
+      return NextResponse.json({ error: unlimitedError.message }, { status: 500 });
     }
+
+    if (periodError) {
+      logAction('CRON_PERIOD_QUERY_ERROR', -1, { error: periodError.message });
+      return NextResponse.json({ error: periodError.message }, { status: 500 });
+    }
+
+    const users = [...(unlimitedUsers || []), ...(periodUsers || [])];
 
     if (!users || users.length === 0) {
       logAction('CRON_NO_SUBSCRIPTIONS_TO_RESET', -1, {});
@@ -44,7 +59,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    logAction('CRON_PROCESSING_SUBSCRIPTIONS', -1, { count: users.length });
+    logAction('CRON_PROCESSING_SUBSCRIPTIONS', -1, { count: users.length, unlimited: unlimitedUsers?.length || 0, period: periodUsers?.length || 0 });
 
     // Reset credits for each user
     const results: any[] = [];
