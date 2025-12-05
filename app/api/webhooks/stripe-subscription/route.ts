@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       unlimited: null, // null = unlimited
     };
 
-    const monthlyCredits = creditMap[plan] ?? 0;
+    const monthlyCredits = plan in creditMap ? creditMap[plan] : 0;
 
     // Update user subscription info
     const { error: updateError } = await supabase

@@ -510,7 +510,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         unlimited: null, // null = unlimited
       };
 
-      const monthlyCredits = planCredits[plan] ?? 0;
+      const monthlyCredits = plan in planCredits ? planCredits[plan] : 0;
       const periodStart = new Date();
       const periodEnd = new Date();
       periodEnd.setMonth(periodEnd.getMonth() + 1);
