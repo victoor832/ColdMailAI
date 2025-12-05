@@ -1,53 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Get recent webhook logs for debugging
+ * Debug endpoint - in-memory webhook tracking
+ * Note: This only works for single instance, in production use a proper logging service
  */
-export async function GET(req: NextRequest) {
-  try {
-    // Query the action_logs table for webhook-related entries
-    const { data: logs, error } = await supabase
-      .from('action_logs')
-      .select('*')
-      .or('action.ilike.%WEBHOOK%,action.ilike.%STRIPE%')
-      .order('created_at', { ascending: false })
-      .limit(100);
+let webhookAttempts: any[] = [];
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+export async function GET(req: NextRequest) {
+  return NextResponse.json({
+    message: 'Webhook logs are stored in Vercel logs. Check Vercel Dashboard > Functions or Logs tab.',
+    note: 'To see webhook processing, check the recent payment-status endpoint or look at Stripe Dashboard webhook events.',
+    tracking: {
+      attempts: webhookAttempts.length,
+      recent: webhookAttempts.slice(-10),
+    },
+  });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const data = await req.json();
+    webhookAttempts.push({
+      timestamp: new Date().toISOString(),
+      data,
+    });
+
+    // Keep only last 100
+    if (webhookAttempts.length > 100) {
+      webhookAttempts = webhookAttempts.slice(-100);
     }
 
-    // Group by event type and action
-    const grouped: Record<string, any[]> = {};
-    logs?.forEach((log) => {
-      const key = `${log.action}`;
-      if (!grouped[key]) {
-        grouped[key] = [];
-      }
-      grouped[key].push(log);
-    });
-
-    return NextResponse.json({
-      total: logs?.length || 0,
-      logs: logs || [],
-      grouped,
-    });
-  } catch (error) {
-    console.error('Webhook logs error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to fetch logs',
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ logged: true });
+  } catch {
+    return NextResponse.json({ error: 'Failed to log' }, { status: 500 });
   }
 }
