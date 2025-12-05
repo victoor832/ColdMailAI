@@ -53,6 +53,18 @@ export async function GET(req: NextRequest) {
 
     for (const user of users) {
       try {
+        // Skip unlimited users - they keep null forever
+        if (user.subscription_plan === 'unlimited') {
+          logAction('CRON_SKIP_UNLIMITED', user.id, {});
+          results.push({
+            userId: user.id,
+            email: user.email,
+            status: 'skipped',
+            reason: 'Unlimited plan - no reset needed',
+          });
+          continue;
+        }
+
         const monthlyCredits = user.subscription_monthly_credits || 0;
         const periodStart = new Date(now);
         const periodEnd = new Date(now);

@@ -504,13 +504,13 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     // Update subscription info if this is Unlimited or monthly plan
     if (plan === 'unlimited' || plan === 'pro' || plan === 'starter') {
-      const planCredits: Record<string, number> = {
+      const planCredits: Record<string, number | null> = {
         starter: 10,
         pro: 25,
-        unlimited: 1000000,
+        unlimited: null, // null = unlimited
       };
 
-      const monthlyCredits = planCredits[plan] || 0;
+      const monthlyCredits = planCredits[plan] ?? 0;
       const periodStart = new Date();
       const periodEnd = new Date();
       periodEnd.setMonth(periodEnd.getMonth() + 1);
@@ -520,16 +520,17 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         .update({
           subscription_plan: plan,
           subscription_status: 'active',
-          subscription_monthly_credits: monthlyCredits,
+          subscription_monthly_credits: monthlyCredits === null ? null : (monthlyCredits as number),
           subscription_current_period_start: periodStart.toISOString(),
-          subscription_current_period_end: periodEnd.toISOString(),
+          subscription_current_period_end: plan === 'unlimited' ? null : periodEnd.toISOString(),
+          credits: monthlyCredits, // null for unlimited, number for others
         })
         .eq('id', user.id);
 
       logAction('SUBSCRIPTION_PLAN_SET', user.id, {
         plan,
-        monthlyCredits,
-        periodEnd: periodEnd.toISOString(),
+        monthlyCredits: monthlyCredits === null ? 'unlimited' : monthlyCredits,
+        periodEnd: plan === 'unlimited' ? 'never' : periodEnd.toISOString(),
       });
     }
   } catch (error) {

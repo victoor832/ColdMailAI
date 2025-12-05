@@ -50,13 +50,13 @@ export async function POST(req: NextRequest) {
     const plan = subscription.metadata?.plan || 'unknown';
 
     // Map plan to monthly credits
-    const creditMap: Record<string, number> = {
+    const creditMap: Record<string, number | null> = {
       starter: 10,
       pro: 25,
-      unlimited: 1000000, // 1M credits per month
+      unlimited: null, // null = unlimited
     };
 
-    const monthlyCredits = creditMap[plan] || 0;
+    const monthlyCredits = creditMap[plan] ?? 0;
 
     // Update user subscription info
     const { error: updateError } = await supabase
@@ -66,9 +66,9 @@ export async function POST(req: NextRequest) {
         subscription_plan: plan,
         stripe_subscription_id: subscription.id,
         subscription_current_period_start: periodStart.toISOString(),
-        subscription_current_period_end: periodEnd.toISOString(),
-        subscription_monthly_credits: monthlyCredits,
-        credits: monthlyCredits, // Set credits to monthly allowance
+        subscription_current_period_end: plan === 'unlimited' ? null : periodEnd.toISOString(),
+        subscription_monthly_credits: monthlyCredits === null ? null : (monthlyCredits as number),
+        credits: monthlyCredits, // null for unlimited, number for others
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id);
