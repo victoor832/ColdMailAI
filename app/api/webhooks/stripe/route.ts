@@ -322,10 +322,17 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     }
 
     // Get user ID from metadata
-    const userId = session.metadata?.user_id;
+    const userIdStr = session.metadata?.user_id;
 
-    if (!userId) {
+    if (!userIdStr) {
       logAction('CHECKOUT_SESSION_NO_USER_ID', -1, { sessionId: session.id });
+      return;
+    }
+
+    const userId = parseInt(userIdStr);
+
+    if (isNaN(userId)) {
+      logAction('CHECKOUT_SESSION_INVALID_USER_ID', -1, { sessionId: session.id, userIdStr });
       return;
     }
 
