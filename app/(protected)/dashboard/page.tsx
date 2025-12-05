@@ -55,7 +55,8 @@ export default function DashboardPage() {
       const statsRes = await fetch('/api/user/stats');
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        setCredits(statsData.credits || 0);
+        // Set credits directly - null for unlimited, number for limited
+        setCredits(statsData.credits !== undefined ? statsData.credits : 0);
       }
     } catch (error) {
       console.error('Failed to fetch history:', error);
