@@ -3,15 +3,18 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useSession } from 'next-auth/react';
+import { useState } from 'react';
 
 export default function PricingPage() {
   const { data: session } = useSession();
+  const [loading, setLoading] = useState<string | null>(null);
 
   const plans = [
     {
       name: 'Starter',
       price: '$9',
       credits: 10,
+      planName: 'starter',
       features: ['10 Researches', 'Email support', 'Basic analytics'],
       highlighted: false,
     },
@@ -19,6 +22,7 @@ export default function PricingPage() {
       name: 'Pro',
       price: '$19',
       credits: 25,
+      planName: 'pro',
       features: ['25 Researches', 'Priority support', 'Advanced analytics', 'API access'],
       highlighted: true,
     },
@@ -27,10 +31,44 @@ export default function PricingPage() {
       price: '$29',
       period: '/month',
       credits: 999999,
+      planName: 'unlimited',
       features: ['Unlimited Researches', '24/7 support', 'Advanced analytics', 'API access', 'Custom templates'],
       highlighted: false,
     },
   ];
+
+  async function handleCheckout(planName: string) {
+    if (!session?.user?.id) {
+      alert('Please sign in first');
+      return;
+    }
+
+    setLoading(planName);
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planName }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to initiate checkout');
+        return;
+      }
+
+      // Redirect to Stripe checkout
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setLoading(null);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -81,8 +119,12 @@ export default function PricingPage() {
                 {plan.credits === 999999 ? 'Unlimited' : plan.credits} credits
               </p>
 
-              <Button className="w-full mb-6">
-                Get Started
+              <Button
+                className="w-full mb-6"
+                onClick={() => handleCheckout(plan.planName)}
+                disabled={loading === plan.planName}
+              >
+                {loading === plan.planName ? 'Processing...' : 'Get Started'}
               </Button>
 
               <div className="space-y-3">
