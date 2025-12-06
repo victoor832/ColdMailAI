@@ -49,7 +49,9 @@ export default function ResearchPage() {
         return;
       }
 
-      setAngles(data.angles || []);
+      // Extract angles from nested data structure
+      const angles = data.data?.angles || data.angles || [];
+      setAngles(angles);
       setEmails(null);
       setSelectedAngle(null);
     } catch (err) {
