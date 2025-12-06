@@ -43,8 +43,7 @@ Start with { and end with }
       "hook": "specific first line hook under 50 chars",
       "evidence": "exact quote or specific detail from content",
       "reasoning": "why this matters",
-      "connection": "how your service helps solve this",
-      "specificityScore": 8
+      "connection": "how your service helps solve this"
     }
   ]
 }

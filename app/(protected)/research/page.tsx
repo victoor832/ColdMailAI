@@ -13,7 +13,6 @@ interface Angle {
   evidence: string;
   reasoning: string;
   connection: string;
-  specificityScore: number;
 }
 
 export default function ResearchPage() {
@@ -146,14 +145,9 @@ export default function ResearchPage() {
             <h2 className="text-2xl font-bold">Found Angles</h2>
             {angles.map((angle, idx) => (
               <div key={idx} className="card">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold">{angle.type}</h3>
-                    <p className="text-blue-600 text-lg mt-1">{angle.hook}</p>
-                  </div>
-                  <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-3 py-1 rounded-full">
-                    Score: {angle.specificityScore}/10
-                  </div>
+                <div className="mb-4">
+                  <h3 className="text-xl font-bold">{angle.type}</h3>
+                  <p className="text-blue-600 text-lg mt-1">{angle.hook}</p>
                 </div>
 
                 <div className="space-y-3 mb-6">
