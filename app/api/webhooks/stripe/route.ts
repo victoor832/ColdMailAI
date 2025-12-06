@@ -14,6 +14,11 @@ const supabase = createClient(
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
+// In-memory cache for duplicate prevention (simple rate limiting)
+// In production, use Redis or similar
+const recentWebhookEvents = new Map<string, { timestamp: number; processed: boolean }>();
+const WEBHOOK_DEDUP_WINDOW = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Stripe webhook handler for payment events
  * Events: payment_intent.succeeded, payment_intent.payment_failed, customer.subscription.deleted
@@ -76,6 +81,28 @@ export async function POST(req: NextRequest) {
     eventId = event.id;
     eventType = event.type;
 
+    // Check for duplicate events (simple rate limiting)
+    const now = Date.now();
+    const cachedEvent = recentWebhookEvents.get(eventId);
+    
+    if (cachedEvent && now - cachedEvent.timestamp < WEBHOOK_DEDUP_WINDOW) {
+      if (cachedEvent.processed) {
+        logAction('WEBHOOK_DUPLICATE_DETECTED', -1, { eventId, eventType });
+        // Return success to avoid Stripe retrying
+        return NextResponse.json({ success: true, duplicate: true });
+      }
+    }
+    
+    // Mark event as being processed
+    recentWebhookEvents.set(eventId, { timestamp: now, processed: false });
+    
+    // Clean up old entries
+    for (const [key, value] of recentWebhookEvents.entries()) {
+      if (now - value.timestamp > WEBHOOK_DEDUP_WINDOW) {
+        recentWebhookEvents.delete(key);
+      }
+    }
+
     logAction('STRIPE_WEBHOOK_RECEIVED', -1, { eventType: event.type, eventId: event.id });
 
     // Log the event received
@@ -121,6 +148,13 @@ export async function POST(req: NextRequest) {
         error: handlerError instanceof Error ? handlerError.message : String(handlerError)
       });
       // Don't throw - still return success to Stripe to avoid infinite retries
+    }
+
+    // Mark event as successfully processed
+    if (recentWebhookEvents.has(eventId)) {
+      const event = recentWebhookEvents.get(eventId)!;
+      event.processed = true;
+      recentWebhookEvents.set(eventId, event);
     }
 
     return NextResponse.json({ success: true, received: true });

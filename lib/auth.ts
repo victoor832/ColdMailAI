@@ -13,19 +13,19 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Email and password are required');
+          throw new Error('Invalid credentials');
         }
 
         const user = await queryUser(credentials.email);
 
         if (!user || !user.password_hash) {
-          throw new Error('Invalid email or password');
+          throw new Error('Invalid credentials'); // Don't reveal if email exists
         }
 
         const passwordMatch = await bcrypt.compare(credentials.password, user.password_hash as string);
 
         if (!passwordMatch) {
-          throw new Error('Invalid email or password');
+          throw new Error('Invalid credentials'); // Generic message
         }
 
         return {
@@ -38,10 +38,10 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 7 * 24 * 60 * 60, // 7 days (reduced from 30 for security)
   },
   jwt: {
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   },
   callbacks: {
     async jwt({ token, user }) {

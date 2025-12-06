@@ -45,9 +45,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { plan } = body;
 
-    // Validate plan
-    if (!plan || !PLAN_MAPPING[plan as keyof typeof PLAN_MAPPING]) {
-      throw new AppError(400, `Invalid plan. Must be one of: ${Object.keys(PLAN_MAPPING).join(', ')}`, 'INVALID_PLAN');
+    // Validate plan exists
+    if (!plan) {
+      throw new AppError(400, 'Plan is required', 'MISSING_PLAN');
+    }
+
+    // Validate plan is in our mapping
+    const validPlans = Object.keys(PLAN_MAPPING);
+    if (!validPlans.includes(plan)) {
+      throw new AppError(400, `Invalid plan. Must be one of: ${validPlans.join(', ')}`, 'INVALID_PLAN');
     }
 
     const planInfo = PLAN_MAPPING[plan as keyof typeof PLAN_MAPPING];

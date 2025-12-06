@@ -161,3 +161,25 @@ export const config = {
     '/api/checkout',
   ],
 };
+
+// Security headers middleware
+export function securityHeadersMiddleware(req: NextRequest) {
+  const response = NextResponse.next();
+  
+  // Prevent clickjacking
+  response.headers.set('X-Frame-Options', 'DENY');
+  
+  // Prevent MIME type sniffing
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  
+  // Enable XSS protection
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  
+  // Referrer policy
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Permissions policy
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  
+  return response;
+}

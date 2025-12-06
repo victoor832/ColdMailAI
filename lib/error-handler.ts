@@ -1,5 +1,24 @@
 import { NextResponse } from 'next/server';
 
+/**
+ * Structured logger for better security and monitoring
+ */
+export function logger(level: 'error' | 'warn' | 'info', message: string, data?: any) {
+  const isDev = process.env.NODE_ENV === 'development';
+  const timestamp = new Date().toISOString();
+  const logEntry = { timestamp, level, message, ...(isDev && data ? { data } : {}) };
+  
+  // Don't expose sensitive details in production
+  if (isDev) {
+    console[level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log'](JSON.stringify(logEntry));
+  } else {
+    // In production, send to logging service (e.g., Sentry, DataDog, etc.)
+    if (level === 'error') {
+      console.error(logEntry.message);
+    }
+  }
+}
+
 export class AppError extends Error {
   constructor(
     public statusCode: number,
@@ -22,7 +41,7 @@ export interface ErrorResponse {
  * Handle API errors consistently
  */
 export function handleError(error: unknown): NextResponse<ErrorResponse> {
-  console.error('[ERROR]', error);
+  logger('error', 'API Error', error);
 
   // AppError - Expected errors
   if (error instanceof AppError) {
