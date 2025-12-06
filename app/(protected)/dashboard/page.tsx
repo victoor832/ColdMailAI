@@ -430,12 +430,12 @@ export default function DashboardPage() {
                               <h4 className="font-bold text-blue-600 dark:text-blue-400 text-base mb-1">{parsedAngle.type?.replace(/_/g, ' ')}</h4>
                               <p className="font-medium text-sm">{parsedAngle.hook}</p>
                             </div>
-                            <span className="text-xs font-bold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full whitespace-nowrap h-fit">
+{/*                             <span className="text-xs font-bold bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full whitespace-nowrap h-fit">
                               {parsedAngle.specificityScore}/10
-                            </span>
+                            </span> */}
                           </div>
 
-                          <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 mb-4">
+                                                    <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300 mb-4">
                             <p><span className="font-semibold">Why:</span> {parsedAngle.reasoning}</p>
                             <p><span className="font-semibold">Connection:</span> {parsedAngle.connection}</p>
                           </div>

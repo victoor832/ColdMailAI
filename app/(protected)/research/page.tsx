@@ -77,7 +77,9 @@ export default function ResearchPage() {
         return;
       }
 
-      setEmails(data);
+      // Extract emails from nested data structure
+      const emailsData = data.data || data;
+      setEmails(emailsData);
       setSelectedAngle(angle);
     } catch (err) {
       setError('An error occurred. Please try again.');
