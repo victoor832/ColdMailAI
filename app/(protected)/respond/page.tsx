@@ -44,7 +44,9 @@ export default function RespondPage() {
         return;
       }
 
-      setAnalysis(data);
+      // Extract analysis from nested data structure
+      const analysisData = data.data || data;
+      setAnalysis(analysisData);
     } catch (err) {
       setError('An error occurred. Please try again.');
     } finally {
