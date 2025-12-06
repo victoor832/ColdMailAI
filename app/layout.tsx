@@ -38,6 +38,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+      <head>
+        {/* Umami Analytics */}
+        <script
+          defer
+          src="https://umami-7d62.onrender.com/script.js"
+          data-website-id="81e3f5ed-220b-467c-b4ac-e8d7557e0da8"
+        ></script>
+      </head>
       <body className="bg-white dark:bg-slate-950">
         <ClientLayout>
           {children}
