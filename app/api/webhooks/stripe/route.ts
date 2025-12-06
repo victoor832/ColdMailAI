@@ -510,6 +510,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         unlimited: null, // null = unlimited
       };
 
+      // Validate plan is in our map
+      if (!(plan in planCredits)) {
+        logAction('INVALID_PLAN_IN_WEBHOOK', user.id, { plan });
+        throw new Error(`Invalid or unsupported plan: ${plan}`);
+      }
+
       const monthlyCredits = plan in planCredits ? planCredits[plan] : 0;
       const periodStart = new Date();
       const periodEnd = new Date();

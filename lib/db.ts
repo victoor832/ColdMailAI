@@ -90,6 +90,12 @@ export async function getUserCredits(userId: number): Promise<number | null> {
 export async function decrementCredits(userId: number) {
   try {
     const credits = await getUserCredits(userId);
+    
+    // If unlimited (null), no need to decrement
+    if (credits === null) {
+      return true;
+    }
+    
     if (credits <= 0) {
       throw new Error('Insufficient credits');
     }

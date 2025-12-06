@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getUserResearchHistory, getUserResponseHistory, deleteUserResearch, deleteUserResponse } from '@/lib/db';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(req: NextRequest) {
     try {
@@ -53,8 +59,36 @@ export async function DELETE(req: NextRequest) {
         const recordId = parseInt(id);
 
         if (type === 'research') {
+            // Verify ownership before deletion
+            const { data: research, error: verifyError } = await supabase
+                .from('user_researches')
+                .select('user_id')
+                .eq('id', recordId)
+                .single();
+
+            if (verifyError || !research || research.user_id !== userId) {
+                return NextResponse.json(
+                    { error: 'Not authorized to delete this resource' },
+                    { status: 403 }
+                );
+            }
+
             await deleteUserResearch(userId, recordId);
         } else if (type === 'response') {
+            // Verify ownership before deletion
+            const { data: response, error: verifyError } = await supabase
+                .from('user_responses')
+                .select('user_id')
+                .eq('id', recordId)
+                .single();
+
+            if (verifyError || !response || response.user_id !== userId) {
+                return NextResponse.json(
+                    { error: 'Not authorized to delete this resource' },
+                    { status: 403 }
+                );
+            }
+
             await deleteUserResponse(userId, recordId);
         } else {
             return NextResponse.json(
