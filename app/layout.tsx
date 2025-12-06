@@ -1,5 +1,6 @@
 import '@/styles/globals.css';
 import { SessionProvider } from 'next-auth/react';
+import { Analytics } from '@vercel/analytics/next';
 import type { Metadata } from 'next';
 import ClientLayout from './client-layout';
 
@@ -50,6 +51,7 @@ export default function RootLayout({
         <ClientLayout>
           {children}
         </ClientLayout>
+        <Analytics />
       </body>
     </html>
   );
