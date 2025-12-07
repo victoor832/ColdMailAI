@@ -25,6 +25,8 @@ export default function ResearchPage() {
   const [selectedAngle, setSelectedAngle] = useState<Angle | null>(null);
   const [emails, setEmails] = useState<any>(null);
   const [error, setError] = useState('');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null);
 
   if (status === 'unauthenticated') {
     router.push('/auth/signin');
@@ -85,6 +87,41 @@ export default function ResearchPage() {
       setError('An error occurred. Please try again.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSendEmail(subject: string, body: string) {
+    if (!recipientEmail) {
+      setError('Please enter a recipient email address');
+      return;
+    }
+
+    setSendingEmail(subject);
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject,
+          body,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to send email');
+        return;
+      }
+
+      setError('');
+      alert(`Email sent successfully to ${recipientEmail}`);
+      setRecipientEmail('');
+    } catch (err) {
+      setError('Failed to send email. Please try again.');
+    } finally {
+      setSendingEmail(null);
     }
   }
 
@@ -183,6 +220,23 @@ export default function ResearchPage() {
 
         {emails && selectedAngle && (
           <div className="mt-12 space-y-6">
+            {/* Recipient Email Input */}
+            <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <label className="block text-sm font-semibold mb-2">Send Email To:</label>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  placeholder="recipient@example.com"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  className="flex-1 px-4 py-2 border border-blue-300 dark:border-blue-700 rounded-lg bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-500"
+                />
+                <Button variant="secondary" disabled={!recipientEmail || sendingEmail !== null}>
+                  Ready to Send
+                </Button>
+              </div>
+            </div>
+
             <h2 className="text-2xl font-bold">Email Variants</h2>
             {emails.variants?.map((variant: any, idx: number) => (
               <div key={idx} className="card">
@@ -191,12 +245,21 @@ export default function ResearchPage() {
                     <h3 className="text-xl font-bold">{variant.type}</h3>
                     <p className="text-blue-600">{variant.subject}</p>
                   </div>
-                  <Button
-                    variant="secondary"
-                    onClick={() => navigator.clipboard.writeText(variant.body)}
-                  >
-                    Copy Body
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => navigator.clipboard.writeText(variant.body)}
+                    >
+                      Copy Body
+                    </Button>
+                    <Button
+                      onClick={() => handleSendEmail(variant.subject, variant.body)}
+                      disabled={!recipientEmail || sendingEmail !== null}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {sendingEmail === variant.subject ? 'Sending...' : 'Send Email'}
+                    </Button>
+                  </div>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg mb-4">
                   <p className="whitespace-pre-wrap text-sm">{variant.body}</p>
@@ -213,12 +276,21 @@ export default function ResearchPage() {
                     <h3 className="text-xl font-bold">Day {followUp.day}</h3>
                     <p className="text-blue-600">{followUp.subject}</p>
                   </div>
-                  <Button
-                    variant="secondary"
-                    onClick={() => navigator.clipboard.writeText(followUp.body)}
-                  >
-                    Copy Body
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() => navigator.clipboard.writeText(followUp.body)}
+                    >
+                      Copy Body
+                    </Button>
+                    <Button
+                      onClick={() => handleSendEmail(followUp.subject, followUp.body)}
+                      disabled={!recipientEmail || sendingEmail !== null}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {sendingEmail === followUp.subject ? 'Sending...' : 'Send Email'}
+                    </Button>
+                  </div>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
                   <p className="whitespace-pre-wrap text-sm">{followUp.body}</p>

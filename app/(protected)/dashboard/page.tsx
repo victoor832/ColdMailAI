@@ -8,6 +8,8 @@ import { Modal } from '@/components/ui/modal';
 import { LoadingButton, LoadingPage } from '@/components/ui/loading';
 import { useEffect, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { exportToCSV } from '@/lib/utils';
+
 
 // Format credits for display (e.g., 10000049 -> 10M, null -> Unlimited)
 function formatCredits(credits: number | null): string {
@@ -301,7 +303,21 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-2 gap-8">
           {/* Recent Research */}
           <div>
-            <h2 className="text-2xl font-bold mb-6">Recent Research</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Recent Research</h2>
+              {history.research.length > 0 && (
+                <button
+                  onClick={() => exportToCSV(history.research, `research-export-${new Date().toISOString().split('T')[0]}.csv`)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg transition-colors"
+                  title="Download research data as CSV"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export CSV
+                </button>
+              )}
+            </div>
             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
               {history.research.length === 0 ? (
                 <p className="text-slate-600 dark:text-slate-400">No research history yet.</p>
@@ -332,7 +348,21 @@ export default function DashboardPage() {
 
           {/* Recent Responses */}
           <div>
-            <h2 className="text-2xl font-bold mb-6">Recent Responses</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold">Recent Responses</h2>
+              {history.responses.length > 0 && (
+                <button
+                  onClick={() => exportToCSV(history.responses, `responses-export-${new Date().toISOString().split('T')[0]}.csv`)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400 rounded-lg transition-colors"
+                  title="Download response analysis data as CSV"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export CSV
+                </button>
+              )}
+            </div>
             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
               {history.responses.length === 0 ? (
                 <p className="text-slate-600 dark:text-slate-400">No response history yet.</p>
