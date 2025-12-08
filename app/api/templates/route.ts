@@ -41,14 +41,28 @@ export async function GET(req: NextRequest) {
       throw new AppError(401, 'Unauthorized', 'UNAUTHORIZED');
     }
 
-    const userId = parseInt(session.user.id);
+    const userId = session.user.id;
 
-    // Parse query parameters
+    // Parse query parameters with validation
     const { searchParams } = new URL(req.url);
     const category = searchParams.get('category');
     const includePublic = searchParams.get('includePublic') === 'true';
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
-    const offset = parseInt(searchParams.get('offset') || '0');
+    
+    // Parse and validate limit parameter
+    let limit = 20; // default
+    const limitParam = Number.parseInt(searchParams.get('limit') || '', 10);
+    if (Number.isFinite(limitParam)) {
+      // Clamp to allowed range [1, 100]
+      limit = Math.max(1, Math.min(limitParam, 100));
+    }
+    
+    // Parse and validate offset parameter
+    let offset = 0; // default
+    const offsetParam = Number.parseInt(searchParams.get('offset') || '', 10);
+    if (Number.isFinite(offsetParam)) {
+      // Ensure offset is not negative
+      offset = Math.max(0, offsetParam);
+    }
 
     // Build query
     let query = supabase
@@ -102,7 +116,7 @@ export async function POST(req: NextRequest) {
       throw new AppError(401, 'Unauthorized', 'UNAUTHORIZED');
     }
 
-    const userId = parseInt(session.user.id);
+    const userId = session.user.id;
 
     // Rate limiting: 5 templates created per hour
     checkRateLimit(`create-template:${userId}`, 5, 3600000);
