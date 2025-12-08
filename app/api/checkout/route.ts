@@ -41,7 +41,8 @@ export async function POST(req: NextRequest) {
       throw new AppError(401, 'Unauthorized. Please log in.', 'UNAUTHORIZED');
     }
 
-    const userId = parseInt(session.user.id); // Convert to number (it's stored as number in DB)
+    // user.id from Supabase Auth is a UUID string - keep it as is
+    const userId = session.user.id;
     const body = await req.json();
     const { plan } = body;
 
@@ -79,7 +80,8 @@ export async function POST(req: NextRequest) {
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: {
-          userId: userId.toString(),
+          userId: userId, // UUID from auth.users
+          user_id: userId,
         },
       });
 
@@ -104,8 +106,8 @@ export async function POST(req: NextRequest) {
         },
       ],
       metadata: {
-        userId: userId.toString(),
-        user_id: userId.toString(), // Include both formats for compatibility
+        userId: userId,
+        user_id: userId, // UUID string from auth.users
         plan,
         stripe_product_id: planInfo.productId,
         stripe_price_id: planInfo.priceId,
@@ -115,8 +117,8 @@ export async function POST(req: NextRequest) {
       cancel_url: `${process.env.NEXTAUTH_URL}/pricing`,
       payment_intent_data: {
         metadata: {
-          userId: userId.toString(),
-          user_id: userId.toString(),
+          userId: userId,
+          user_id: userId, // UUID string from auth.users
           plan,
           stripe_product_id: planInfo.productId,
           stripe_price_id: planInfo.priceId,

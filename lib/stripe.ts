@@ -5,7 +5,7 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 export async function createCheckoutSession(
-  userId: number,
+  userId: string, // UUID from auth.users
   planName: string,
   amount: number,
   isSubscription: boolean,
@@ -25,7 +25,8 @@ export async function createCheckoutSession(
       success_url: `${baseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/pricing`,
       metadata: {
-        userId: userId.toString(),
+        userId: userId, // UUID string
+        user_id: userId, // UUID string
         plan: planName,
       },
     });
@@ -47,7 +48,7 @@ export function getCreditsForPlan(plan: string): number {
   return creditsMap[plan] || 0;
 }
 
-export async function updateUserCredits(userId: number, creditsToAdd: number) {
+export async function updateUserCredits(userId: string, creditsToAdd: number) {
   try {
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
