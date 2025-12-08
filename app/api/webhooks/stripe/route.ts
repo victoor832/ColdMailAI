@@ -403,7 +403,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 /**
  * Handle checkout session completed
  * This is called when checkout.session.completed event is received
- * (e.g., when total is 0 due to promo code, no payment_intent is created)
+ * Simply records the payment without updating user tables
  */
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
   try {
@@ -416,7 +416,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       return;
     }
 
-    // Get user ID from metadata
+    // Get user ID from metadata - this is a UUID string from auth.users
     const userIdStr = session.metadata?.user_id;
 
     if (!userIdStr) {
@@ -424,23 +424,25 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       return;
     }
 
-    const userId = parseInt(userIdStr);
-
-    if (isNaN(userId)) {
-      logAction('CHECKOUT_SESSION_INVALID_USER_ID', -1, { sessionId: session.id, userIdStr });
+    // Validate it's a UUID format (basic check)
+    // UUID format: 8-4-4-4-12 hex digits with hyphens
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userIdStr)) {
+      logAction('CHECKOUT_SESSION_INVALID_UUID', -1, { sessionId: session.id, userIdStr });
       return;
     }
 
-    // Get user
+    const userId = userIdStr; // Keep as UUID string
+
+    // Verify user exists in auth.users
     const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id, email, credits')
+      .from('auth.users')
+      .select('id, email')
       .eq('id', userId)
       .single();
 
     if (userError || !user) {
       logAction('CHECKOUT_SESSION_USER_NOT_FOUND', -1, { userId, userError: userError?.message });
-      return; // Return early instead of throwing
+      return;
     }
 
     // Get product info from metadata
@@ -449,7 +451,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const plan = session.metadata?.plan;
 
     if (!priceId && !productId) {
-      logAction('CHECKOUT_SESSION_NO_PRODUCT_INFO', user.id, { sessionId: session.id });
+      logAction('CHECKOUT_SESSION_NO_PRODUCT_INFO', userId, { sessionId: session.id });
       return;
     }
 
@@ -465,40 +467,58 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const { data: product, error: productError } = await query.single();
 
     if (productError || !product) {
-      logAction('PRODUCT_NOT_IN_DB', user.id, { productId, priceId, productError: productError?.message });
-      return; // Return early instead of throwing
+      logAction('PRODUCT_NOT_IN_DB', userId, { productId, priceId, productError: productError?.message });
+      return;
     }
 
     const creditsToAdd = product.credit_value;
 
-    logAction('CHECKOUT_SESSION_PROCESSING', user.id, {
+    logAction('CHECKOUT_SESSION_PROCESSING', userId, {
       sessionId: session.id,
-      currentCredits: user.credits,
       creditsToAdd,
       plan,
       discount: session.total_details?.amount_discount || 0,
     });
 
-    // Update user credits
-    const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
-      .update({ 
-        credits: user.credits + creditsToAdd,
-        updated_at: new Date().toISOString(),
+    // Create payment record in payments table with UUID user_id
+    const { data: paymentData, error: paymentInsertError } = await supabase
+      .from('payments')
+      .insert({
+        user_id: userId, // UUID string
+        stripe_payment_intent_id: session.id,
+        stripe_customer_id: (session.customer as string) || '',
+        stripe_product_id: productId || null,
+        stripe_price_id: priceId || null,
+        amount: session.amount_total || 0,
+        currency: session.currency || 'eur',
+        credits_added: creditsToAdd,
+        status: 'succeeded',
+        created_at: new Date().toISOString(),
       })
-      .eq('id', user.id)
-      .select('credits')
-      .single();
+      .select();
 
-    if (updateError) {
-      logAction('CREDITS_UPDATE_ERROR', user.id, { error: updateError.message });
-      return; // Return early instead of throwing
+    if (paymentInsertError) {
+      logAction('PAYMENT_INSERT_FAILED', userId, { 
+        error: paymentInsertError.message,
+        code: paymentInsertError.code,
+      });
+      
+      // Log failure to webhook_logs
+      await supabase.from('webhook_logs').insert({
+        event_type: 'checkout.session.completed',
+        event_id: session.id,
+        status: 'failed',
+        user_id: userId,
+        error_message: `Payment insert failed: ${paymentInsertError.message}`,
+        payload: { session_id: session.id },
+      });
+      
+      return;
     }
 
-    logAction('CHECKOUT_SESSION_CREDITS_ADDED', user.id, {
+    logAction('CHECKOUT_SESSION_COMPLETED', userId, {
       sessionId: session.id,
       creditsAdded: creditsToAdd,
-      newCredits: updatedUser?.credits || (user.credits + creditsToAdd),
       amountTotal: session.amount_total,
       discount: session.total_details?.amount_discount || 0,
     });
@@ -508,78 +528,19 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       event_type: 'checkout.session.completed',
       event_id: session.id,
       status: 'processed',
-      user_id: user.id,
+      user_id: userId,
       payload: {
         creditsAdded: creditsToAdd,
-        newCredits: updatedUser?.credits,
         sessionId: session.id,
+        amountTotal: session.amount_total,
       },
     });
 
-    // Create payment record in payments table
-    const { error: paymentInsertError } = await supabase.from('payments').insert({
-      user_id: user.id,
-      stripe_payment_intent_id: session.id, // Use session ID as reference
-      stripe_customer_id: (session.customer as string) || '',
-      stripe_product_id: productId || null,
-      stripe_price_id: priceId || null,
-      amount: session.amount_total || 0,
-      currency: session.currency || 'eur',
-      credits_added: creditsToAdd,
-      status: 'succeeded',
-      created_at: new Date().toISOString(),
-    });
-
-    if (paymentInsertError) {
-      logAction('PAYMENT_INSERT_FAILED', user.id, { error: paymentInsertError.message });
-      // Log but don't fail - credits were already updated
-      return;
-    }
-
-    // Update subscription info if this is Unlimited or monthly plan
-    if (plan === 'unlimited' || plan === 'pro' || plan === 'starter') {
-      const planCredits: Record<string, number | null> = {
-        starter: 10,
-        pro: 25,
-        unlimited: null, // null = unlimited
-      };
-
-      // Validate plan is in our map
-      if (!(plan in planCredits)) {
-        logAction('INVALID_PLAN_IN_WEBHOOK', user.id, { plan });
-        throw new Error(`Invalid or unsupported plan: ${plan}`);
-      }
-
-      const monthlyCredits = plan in planCredits ? planCredits[plan] : 0;
-      const periodStart = new Date();
-      const periodEnd = new Date();
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-      await supabase
-        .from('users')
-        .update({
-          plan: plan, // Sync plan field to match subscription_plan
-          subscription_plan: plan,
-          subscription_status: 'active',
-          subscription_monthly_credits: monthlyCredits === null ? null : (monthlyCredits as number),
-          subscription_current_period_start: periodStart.toISOString(),
-          subscription_current_period_end: plan === 'unlimited' ? null : periodEnd.toISOString(),
-          credits: monthlyCredits, // null for unlimited, number for others
-        })
-        .eq('id', user.id);
-
-      logAction('SUBSCRIPTION_PLAN_SET', user.id, {
-        plan,
-        monthlyCredits: monthlyCredits === null ? 'unlimited' : monthlyCredits,
-        periodEnd: plan === 'unlimited' ? 'never' : periodEnd.toISOString(),
-      });
-    }
   } catch (error) {
     console.error('Checkout session handler error:', error);
     logAction('CHECKOUT_SESSION_EXCEPTION', -1, {
       error: error instanceof Error ? error.message : String(error),
     });
-    // Don't re-throw - let the outer handler catch it
   }
 }
 
