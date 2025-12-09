@@ -9,6 +9,30 @@ import {
 } from '@/lib/error-handler';
 import { z } from 'zod';
 
+// HTML escape function to prevent injection attacks
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return text.replace(/[&<>"']/g, (char) => map[char]);
+}
+
+// Hash function for consistent anonymization of sensitive values
+function hashSensitiveValue(value: string): string {
+  // Simple deterministic hash for logging - not for security
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    const char = value.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash | 0; // Convert to 32-bit signed integer
+  }
+  return `hash_${Math.abs(hash).toString(36).substring(0, 8)}`;
+}
+
 // Initialize Resend
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
@@ -16,7 +40,6 @@ const SendEmailSchema = z.object({
   to: z.string().email('Invalid email address'),
   subject: z.string().min(3, 'Subject too short').max(200, 'Subject too long'),
   body: z.string().min(10, 'Body too short').max(10000, 'Body too long'),
-  type: z.string().optional().default('standard'),
 });
 
 export async function POST(req: NextRequest) {
@@ -28,7 +51,7 @@ export async function POST(req: NextRequest) {
       throw new AppError(401, 'Unauthorized. Please log in.', 'UNAUTHORIZED');
     }
 
-    const userId = parseInt(session.user.id);
+    const userId = session.user.id;
     const userEmail = session.user.email;
 
     // Check if Resend API key is configured
@@ -54,6 +77,10 @@ export async function POST(req: NextRequest) {
     // Validate schema
     const validatedData = SendEmailSchema.parse(body);
 
+    // Escape user inputs for HTML context
+    const escapedUserEmail = escapeHtml(userEmail);
+    const escapedBody = escapeHtml(validatedData.body);
+
     // Send email via Resend
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -62,7 +89,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || 'noreply@coldmailai.com',
+        from: process.env.RESEND_FROM_EMAIL || 'noreply@mail.readytorelease.online',
         to: validatedData.to,
         subject: validatedData.subject,
         html: `
@@ -74,14 +101,14 @@ export async function POST(req: NextRequest) {
               </div>
               <div style="background: #f9fafb; padding: 30px 20px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
                 <div style="margin-bottom: 20px;">
-                  ${validatedData.body
+                  ${escapedBody
                     .split('\n')
                     .map((line: string) => `<p style="margin: 10px 0;">${line}</p>`)
                     .join('')}
                 </div>
                 <div style="border-top: 1px solid #e5e7eb; padding-top: 15px; margin-top: 20px; color: #666; font-size: 12px;">
                   <p style="margin: 5px 0;">Sent via <strong>ColdMailAI</strong></p>
-                  <p style="margin: 5px 0;">From: ${userEmail}</p>
+                  <p style="margin: 5px 0;">From: ${escapedUserEmail}</p>
                 </div>
               </div>
             </div>
@@ -92,25 +119,73 @@ export async function POST(req: NextRequest) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      let errorMessage = 'Unknown error from email service';
+      let rawBody = '';
+
+      try {
+        // Read response body once as text
+        rawBody = await response.text();
+        
+        // Try to parse as JSON to extract error message
+        if (rawBody) {
+          try {
+            const errorJson = JSON.parse(rawBody);
+            errorMessage = errorJson.message || errorJson.error || rawBody || `HTTP ${response.status}`;
+          } catch {
+            // JSON parse failed, use raw text as error message
+            errorMessage = rawBody || `HTTP ${response.status}`;
+          }
+        } else {
+          errorMessage = `HTTP ${response.status}`;
+        }
+      } catch (readError) {
+        errorMessage = `HTTP ${response.status}: Failed to read error response`;
+      }
+
       logAction('EMAIL_SEND_FAILED', userId, {
-        to: validatedData.to,
-        error: error.message,
+        recipientHash: hashSensitiveValue(validatedData.to),
+        error: errorMessage,
+        status: response.status,
+        rawBody: rawBody.substring(0, 500), // Limit to first 500 chars for logging
       });
       throw new AppError(
         response.status,
-        `Failed to send email: ${error.message}`,
+        `Failed to send email: ${errorMessage}`,
         'EMAIL_SEND_ERROR'
       );
     }
 
-    const resendResponse = await response.json();
+    let resendResponse: any;
+    try {
+      resendResponse = await response.json();
+    } catch (parseError) {
+      // JSON parsing failed - capture raw response text for diagnostics
+      let rawResponseText = '';
+      try {
+        rawResponseText = await response.text();
+      } catch {
+        rawResponseText = '(unable to read response body)';
+      }
 
-    // Log successful send
+      logAction('EMAIL_RESPONSE_PARSE_ERROR', userId, {
+        recipientHash: hashSensitiveValue(validatedData.to),
+        error: 'Failed to parse successful response as JSON',
+        parseError: String(parseError),
+        rawResponse: rawResponseText.substring(0, 500), // Limit to first 500 chars
+      });
+      throw new AppError(
+        500,
+        'Email sent but failed to parse response',
+        'EMAIL_RESPONSE_ERROR'
+      );
+    }
+
+    // Log successful send - without storing raw PII
     logAction('EMAIL_SENT', userId, {
-      to: validatedData.to,
-      subject: validatedData.subject,
+      recipientHash: hashSensitiveValue(validatedData.to),
+      subjectHash: hashSensitiveValue(validatedData.subject),
       resendId: resendResponse.id,
+      status: 'sent',
     });
 
     return NextResponse.json(
@@ -118,6 +193,7 @@ export async function POST(req: NextRequest) {
         success: true,
         message: 'Email sent successfully',
         emailId: resendResponse.id,
+        from: process.env.RESEND_FROM_EMAIL || 'noreply@mail.readytorelease.online',
       },
       { status: 200 }
     );

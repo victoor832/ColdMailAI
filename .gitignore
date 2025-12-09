@@ -49,6 +49,13 @@ yarn-error.log*
 # schema.sql - UNCOMMENT if you want to track it
 # schema.stripe.sql - UNCOMMENT if you want to track it
 
+# TypeScript incremental build cache (generated during compilation)
+tsconfig.tsbuildinfo
+
+# Chrome Extension: Ignore generated manifest (environment-specific), keep templates
+public/chrome-extension/manifest.json
+!public/chrome-extension/manifest.*.json
+
 # Test/script outputs (keep test files, exclude outputs)
 *.test.txt
 test-output/
@@ -65,3 +72,4 @@ docs/**
 *.sql
 *.sh
 .npmrc
+todo.md

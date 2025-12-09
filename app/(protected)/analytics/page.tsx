@@ -40,7 +40,6 @@ export default function AnalyticsPage() {
       const statsRes = await fetch('/api/user/stats');
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        console.log('Stats data:', statsData);
         setStats((prev) => ({
           ...prev,
           totalResearches: statsData.researchCount || 0,
@@ -55,7 +54,6 @@ export default function AnalyticsPage() {
       const historyRes = await fetch('/api/user/history');
       if (historyRes.ok) {
         const historyData = await historyRes.json();
-        console.log('History data:', historyData);
         const mostRecent = historyData.research?.[0];
         if (mostRecent) {
           setStats((prev) => ({

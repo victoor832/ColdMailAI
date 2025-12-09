@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "ColdMailAI - Research Assistant (Dev)",
+  "version": "1.0.0",
+  "description": "Research companies and generate personalized cold emails with AI. Works with ColdMailAI web platform. (Development Build)",
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://mail.readytorelease.online/*",
+    "https://localhost:3000/*",
+    "http://localhost:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Research companies & generate cold emails"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.readytorelease.online/*",
+        "https://localhost:3000/*",
+        "http://localhost:3000/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_end"
+    }
+  ]
+}

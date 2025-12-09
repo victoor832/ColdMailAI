@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
     // Check credits
     const credits = await withRetry(() => getUserCredits(userId), 2);
     
-    if (credits <= 0) {
+    // Allow if unlimited (null) or have credits
+    if (credits !== null && credits <= 0) {
       throw new AppError(
         402,
         'Insufficient credits. Please purchase more credits to continue.',

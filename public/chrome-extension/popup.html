@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <link rel="icon" href="../../favicon.ico" type="image/x-icon" />
     <style>
       * {
         margin: 0;
@@ -10,67 +11,117 @@
       }
 
       body {
-        width: 450px;
+        width: 420px;
+        max-height: 680px;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: #333;
+        background: linear-gradient(to bottom, #f8fafc, #ffffff);
+        color: #1a1a1a;
       }
 
       .container {
-        padding: 20px;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
       }
 
       .header {
         display: flex;
         align-items: center;
-        gap: 10px;
-        margin-bottom: 20px;
+        gap: 12px;
+        padding: 14px 18px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border-bottom: none;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
       }
 
       .logo {
-        width: 32px;
-        height: 32px;
-        background: white;
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.95);
         border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-weight: bold;
-        color: #667eea;
-        font-size: 18px;
+        font-weight: 700;
+        color: #2563eb;
+        font-size: 20px;
+        flex-shrink: 0;
       }
 
       .title {
         color: white;
-        font-size: 18px;
-        font-weight: 600;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
       }
 
-      .status {
-        background: white;
-        border-radius: 12px;
-        padding: 15px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      .content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 18px;
+      }
+
+      .status-box {
+        background: #f0f9ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
       }
 
       .status-label {
-        font-size: 12px;
-        color: #999;
+        font-size: 11px;
+        color: #64748b;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-bottom: 5px;
+        margin-bottom: 4px;
+        font-weight: 600;
       }
 
       .url-display {
-        font-size: 13px;
-        color: #333;
+        font-size: 12px;
+        color: #1e293b;
         word-break: break-all;
-        font-family: monospace;
-        background: #f5f5f5;
+        font-family: 'Monaco', 'Menlo', monospace;
+        background: white;
         padding: 8px;
+        border-radius: 4px;
+        border: 1px solid #dbeafe;
+      }
+
+      .form-group {
+        margin-bottom: 16px;
+      }
+
+      .form-label {
+        font-size: 10px;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 700;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 9px 11px;
+        border: 1px solid #e2e8f0;
         border-radius: 6px;
-        margin-bottom: 10px;
+        font-size: 12px;
+        font-family: inherit;
+        box-sizing: border-box;
+        background: white;
+        color: #1a1a1a;
+        transition: all 0.2s ease;
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        background: #f0f9ff;
       }
 
       .button-group {
@@ -79,13 +130,13 @@
       }
 
       button {
-        padding: 12px 16px;
+        padding: 11px 14px;
         border: none;
-        border-radius: 8px;
-        font-size: 14px;
+        border-radius: 6px;
+        font-size: 13px;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -93,65 +144,80 @@
       }
 
       .btn-primary {
-        background: #667eea;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
         color: white;
+        box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
       }
 
       .btn-primary:hover {
-        background: #5568d3;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(102, 126, 234, 0.3);
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+        transform: translateY(-1px);
+      }
+
+      .btn-primary:active {
+        transform: translateY(0);
       }
 
       .btn-secondary {
         background: white;
-        color: #667eea;
-        border: 2px solid #667eea;
+        color: #3b82f6;
+        border: 1.5px solid #3b82f6;
       }
 
       .btn-secondary:hover {
-        background: #f5f7ff;
+        background: #f0f9ff;
       }
 
       .btn-disabled {
-        opacity: 0.5;
+        opacity: 0.6;
         cursor: not-allowed;
       }
 
-      .error {
-        background: #fee;
-        color: #c33;
-        padding: 12px;
-        border-radius: 8px;
-        font-size: 13px;
-        margin-bottom: 15px;
-        border-left: 4px solid #c33;
+      .btn-disabled:hover {
+        transform: none;
       }
 
-      .success {
-        background: #efe;
-        color: #3c3;
+      .alert {
         padding: 12px;
-        border-radius: 8px;
-        font-size: 13px;
-        margin-bottom: 15px;
-        border-left: 4px solid #3c3;
+        border-radius: 6px;
+        font-size: 12px;
+        margin-bottom: 16px;
+        display: flex;
+        gap: 8px;
+      }
+
+      .alert-error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+      }
+
+      .alert-success {
+        background: #dcfce7;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+      }
+
+      .alert-icon {
+        flex-shrink: 0;
+        font-size: 14px;
       }
 
       .loading {
         display: none;
         text-align: center;
-        padding: 20px;
+        padding: 30px 20px;
       }
 
       .spinner {
         display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 3px solid rgba(255, 255, 255, 0.3);
+        width: 24px;
+        height: 24px;
+        border: 3px solid rgba(59, 130, 246, 0.2);
         border-radius: 50%;
-        border-top-color: white;
-        animation: spin 1s linear infinite;
+        border-top-color: #3b82f6;
+        animation: spin 0.8s linear infinite;
       }
 
       @keyframes spin {
@@ -160,26 +226,32 @@
         }
       }
 
+      .loading-text {
+        color: #64748b;
+        margin-top: 12px;
+        font-size: 13px;
+      }
+
       .info-text {
-        color: #666;
+        color: #64748b;
         font-size: 12px;
-        margin-top: 10px;
+        margin-top: 12px;
         line-height: 1.5;
       }
 
       .feature-list {
-        background: white;
-        border-radius: 12px;
-        padding: 15px;
-        margin-top: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        background: #f8fafc;
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 16px;
+        border: 1px solid #e2e8f0;
       }
 
       .feature-list h3 {
-        color: #667eea;
-        font-size: 13px;
-        font-weight: 600;
-        margin-bottom: 10px;
+        color: #3b82f6;
+        font-size: 11px;
+        font-weight: 700;
+        margin-bottom: 8px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
@@ -190,17 +262,17 @@
 
       .feature-list li {
         font-size: 12px;
-        color: #666;
-        padding: 5px 0;
-        padding-left: 18px;
+        color: #475569;
+        padding: 4px 0;
+        padding-left: 20px;
         position: relative;
       }
 
       .feature-list li:before {
-        content: '✓';
+        content: '→';
         position: absolute;
         left: 0;
-        color: #667eea;
+        color: #3b82f6;
         font-weight: bold;
       }
     </style>
@@ -208,44 +280,67 @@
   <body>
     <div class="container">
       <div class="header">
-        <div class="logo">🚀</div>
+        <div class="logo">
+          <img src="https://mail.readytorelease.online/favicon.ico" alt="Favicon" style="width:27px; height:27px; object-fit:contain; display:block; margin:0;">
+        </div>
         <div class="title">ColdMailAI</div>
       </div>
 
-      <div id="error" class="error" style="display: none;"></div>
-      <div id="success" class="success" style="display: none;"></div>
-
-      <div id="loading" class="loading">
-        <div class="spinner"></div>
-        <p style="color: white; margin-top: 10px;">Processing...</p>
-      </div>
-
-      <div id="main" class="status">
-        <div class="status-label">Current Website</div>
-        <div class="url-display" id="currentUrl">-</div>
-
-        <div class="button-group">
-          <button class="btn-primary" id="analyzeBtn">
-            🔍 Analyze Company
-          </button>
-          <button class="btn-secondary" id="loginBtn" style="display: none;">
-            🔐 Sign In to ColdMailAI
-          </button>
+      <div class="content">
+        <div id="error" class="alert alert-error" style="display: none;">
+          <span class="alert-icon">⚠️</span>
+          <span id="errorText"></span>
         </div>
 
-        <p class="info-text">
-          📊 AI analyzes the website and generates 3 personalized research angles + email templates
-        </p>
-      </div>
+        <div id="success" class="alert alert-success" style="display: none;">
+          <span class="alert-icon">✓</span>
+          <span id="successText"></span>
+        </div>
 
-      <div class="feature-list">
-        <h3>What ColdMailAI Does:</h3>
-        <ul>
-          <li>Analyzes company websites instantly</li>
-          <li>Generates 3 research angles</li>
-          <li>Creates personalized cold emails</li>
-          <li>Saves time on outreach</li>
-        </ul>
+        <div id="loading" class="loading">
+          <div class="spinner"></div>
+          <p class="loading-text">Analyzing...</p>
+        </div>
+
+        <div id="main">
+          <div class="status-box">
+            <div class="status-label">Current Website</div>
+            <div class="url-display" id="currentUrl">-</div>
+          </div>
+
+          <div class="form-group">
+            <label for="serviceInput" class="form-label">What do you sell?</label>
+            <input 
+              type="text" 
+              id="serviceInput"
+              class="form-input"
+              placeholder="e.g., Email marketing software, CRM tools, etc."
+            />
+          </div>
+
+          <div class="button-group">
+            <button class="btn-primary" id="analyzeBtn">
+              🔍 Analyze Company
+            </button>
+            <button class="btn-secondary" id="loginBtn" style="display: none;">
+              🔐 Sign In to ColdMailAI
+            </button>
+          </div>
+
+          <p class="info-text">
+            💡 AI analyzes the website and generates personalized research + email templates
+          </p>
+
+          <div class="feature-list">
+            <h3>This extension does:</h3>
+            <ul>
+              <li>Analyzes company websites</li>
+              <li>Generates research angles</li>
+              <li>Creates cold email templates</li>
+              <li>Saves time on research</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
 

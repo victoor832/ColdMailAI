@@ -37,10 +37,31 @@ export function isValidUrl(url: string): boolean {
   }
 }
 
+/**
+ * Exports an array of objects to a CSV file and triggers download.
+ * 
+ * @param data - Array of objects to export. Must not be empty.
+ * @param filename - Optional filename for the downloaded CSV (default: 'export.csv')
+ * 
+ * @throws {Error} Throws 'No data to export' if data array is empty or null
+ * 
+ * @remarks
+ * - Callers MUST wrap calls in try-catch to handle the 'No data to export' error
+ * - The function creates a blob URL and revokes it after download initiation
+ * - CSV escaping handles quoted strings and newlines properly
+ * - Objects and arrays are serialized as JSON strings in cells
+ * 
+ * @example
+ * try {
+ *   exportToCSV(records, 'data.csv');
+ * } catch (error) {
+ *   console.error('Export failed:', error);
+ *   alert('Failed to export: ' + (error instanceof Error ? error.message : 'Unknown error'));
+ * }
+ */
 export function exportToCSV(data: any[], filename: string = 'export.csv'): void {
   if (!data || data.length === 0) {
-    alert('No data to export');
-    return;
+    throw new Error('No data to export');
   }
 
   // Get all unique keys from all objects
@@ -91,6 +112,14 @@ export function exportToCSV(data: any[], filename: string = 'export.csv'): void 
   link.setAttribute('href', url);
   link.setAttribute('download', filename);
   link.style.visibility = 'hidden';
+  
+  // Revoke blob URL after download starts to prevent memory leak
+  // Use click handler for reliable cleanup that doesn't race with download initiation
+  link.onclick = () => {
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 500); // Allow 500ms for browser to process download before revoking
+  };
   
   document.body.appendChild(link);
   link.click();

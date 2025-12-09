@@ -9,7 +9,18 @@ import { LoadingButton, LoadingPage } from '@/components/ui/loading';
 import { useEffect, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { exportToCSV } from '@/lib/utils';
+import { toast } from 'sonner';
 
+// Note: exportToCSV() throws Error('No data to export') on empty data
+// All calls must be wrapped in try-catch for proper error handling
+
+// Validate email format using robust regex pattern
+function isValidEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  // RFC 5322 simplified pattern for most common cases
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
+}
 
 // Format credits for display (e.g., 10000049 -> 10M, null -> Unlimited)
 function formatCredits(credits: number | null): string {
@@ -38,6 +49,8 @@ export default function DashboardPage() {
   const [emails, setEmails] = useState<any>(null);
   const [generatingEmail, setGeneratingEmail] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -87,6 +100,58 @@ export default function DashboardPage() {
       console.error('Failed to generate emails:', err);
     } finally {
       setGeneratingEmail(false);
+    }
+  }
+
+  async function handleSendEmail(emailId: string, subject: string, body: string) {
+    // Validate email format
+    if (!recipientEmail) {
+      toast.error('Email address required', {
+        description: 'Please enter a recipient email address',
+      });
+      return;
+    }
+
+    if (!isValidEmail(recipientEmail)) {
+      toast.error('Invalid email format', {
+        description: `"${recipientEmail}" is not a valid email address. Please check and try again.`,
+      });
+      return;
+    }
+
+    setSendingEmailId(emailId);
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject,
+          body,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = data.error || 'Failed to send email';
+        toast.error('Email not sent', {
+          description: errorMessage,
+        });
+        return;
+      }
+
+      toast.success('Email sent successfully', {
+        description: `Your email was sent to ${recipientEmail}`,
+      });
+      // Keep recipient email persisted for user convenience
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred';
+      toast.error('Failed to send email', {
+        description: errorMsg,
+      });
+    } finally {
+      setSendingEmailId(null);
     }
   }
 
@@ -307,7 +372,16 @@ export default function DashboardPage() {
               <h2 className="text-2xl font-bold">Recent Research</h2>
               {history.research.length > 0 && (
                 <button
-                  onClick={() => exportToCSV(history.research, `research-export-${new Date().toISOString().split('T')[0]}.csv`)}
+                  onClick={() => {
+                    try {
+                      exportToCSV(history.research, `research-export-${new Date().toISOString().split('T')[0]}.csv`);
+                      alert('✅ Research data exported successfully!');
+                    } catch (error) {
+                      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                      console.error('Export failed:', error);
+                      alert(`❌ Export failed: ${errorMessage}`);
+                    }
+                  }}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg transition-colors"
                   title="Download research data as CSV"
                 >
@@ -352,7 +426,16 @@ export default function DashboardPage() {
               <h2 className="text-2xl font-bold">Recent Responses</h2>
               {history.responses.length > 0 && (
                 <button
-                  onClick={() => exportToCSV(history.responses, `responses-export-${new Date().toISOString().split('T')[0]}.csv`)}
+                  onClick={() => {
+                    try {
+                      exportToCSV(history.responses, `responses-export-${new Date().toISOString().split('T')[0]}.csv`);
+                      alert('✅ Response data exported successfully!');
+                    } catch (error) {
+                      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                      console.error('Export failed:', error);
+                      alert(`❌ Export failed: ${errorMessage}`);
+                    }
+                  }}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400 rounded-lg transition-colors"
                   title="Download response analysis data as CSV"
                 >
@@ -503,6 +586,34 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="space-y-8 pb-8 animate-in fade-in duration-300">
+                      {/* Recipient Email Input - Enhanced */}
+                      <div className="card bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-2 border-blue-300 dark:border-blue-700 shadow-md">
+                        <div className="flex items-center gap-2 mb-3">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                            <polyline points="22,6 12,13 2,6" />
+                          </svg>
+                          <label className="block text-sm font-bold text-blue-700 dark:text-blue-300">Send Email Directly (NEW!)</label>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="email"
+                            placeholder="recipient@example.com"
+                            value={recipientEmail}
+                            onChange={(e) => setRecipientEmail(e.target.value)}
+                            className="flex-1 px-4 py-3 border-2 border-blue-200 dark:border-blue-700 rounded-lg bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-500 font-medium focus:border-blue-500 focus:outline-none"
+                          />
+                          <Button 
+                            variant="secondary" 
+                            disabled={!recipientEmail}
+                            className={recipientEmail ? 'bg-blue-100 hover:bg-blue-200' : ''}
+                          >
+                            ✓ Ready
+                          </Button>
+                        </div>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">Emails are sent via Resend within 1–2 seconds</p>
+                      </div>
+
                       <div>
                         <h2 className="text-2xl font-bold mb-6 sticky top-0 bg-slate-50/95 dark:bg-slate-900/95 py-4 z-10 backdrop-blur-sm">Email Variants</h2>
                         <div className="grid md:grid-cols-2 gap-6">
@@ -513,14 +624,29 @@ export default function DashboardPage() {
                                   <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">{variant.type}</h4>
                                   <p className="text-blue-600 font-medium text-sm">{variant.subject}</p>
                                 </div>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => navigator.clipboard.writeText(variant.body)}
-                                  className="h-8"
-                                >
-                                  Copy
-                                </Button>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => navigator.clipboard.writeText(variant.body)}
+                                    className="h-8"
+                                  >
+                                    Copy
+                                  </Button>
+                                  {(() => {
+                                    const variantId = `variant-${idx}-${variant.subject}`;
+                                    return (
+                                      <Button
+                                        onClick={() => handleSendEmail(variantId, variant.subject, variant.body)}
+                                        disabled={!recipientEmail || sendingEmailId !== null}
+                                        size="sm"
+                                        className="h-8 bg-green-600 hover:bg-green-700 text-white"
+                                      >
+                                        {sendingEmailId === variantId ? 'Sending...' : 'Send Email'}
+                                      </Button>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                               <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded border border-slate-100 dark:border-slate-800">
                                 <p className="whitespace-pre-wrap text-sm font-mono text-slate-600 dark:text-slate-300">{variant.body}</p>
@@ -540,14 +666,29 @@ export default function DashboardPage() {
                                   <h4 className="font-bold text-xs uppercase tracking-wider text-slate-500">Day {followUp.day}</h4>
                                   <p className="text-blue-600 font-medium text-sm">{followUp.subject}</p>
                                 </div>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => navigator.clipboard.writeText(followUp.body)}
-                                  className="h-8"
-                                >
-                                  Copy
-                                </Button>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => navigator.clipboard.writeText(followUp.body)}
+                                    className="h-8"
+                                  >
+                                    Copy
+                                  </Button>
+                                  {(() => {
+                                    const followupId = `followup-${idx}-${followUp.subject}`;
+                                    return (
+                                      <Button
+                                        onClick={() => handleSendEmail(followupId, followUp.subject, followUp.body)}
+                                        disabled={!recipientEmail || sendingEmailId !== null}
+                                        size="sm"
+                                        className="h-8 bg-green-600 hover:bg-green-700 text-white"
+                                      >
+                                        {sendingEmailId === followupId ? 'Sending...' : 'Send Email'}
+                                      </Button>
+                                    );
+                                  })()}
+                                </div>
                               </div>
                               <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded border border-slate-100 dark:border-slate-800">
                                 <p className="whitespace-pre-wrap text-sm font-mono text-slate-600 dark:text-slate-300">{followUp.body}</p>

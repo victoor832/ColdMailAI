@@ -220,21 +220,32 @@ export default function ResearchPage() {
 
         {emails && selectedAngle && (
           <div className="mt-12 space-y-6">
-            {/* Recipient Email Input */}
-            <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-              <label className="block text-sm font-semibold mb-2">Send Email To:</label>
+            {/* Recipient Email Input - Enhanced */}
+            <div className="card bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border-2 border-blue-300 dark:border-blue-700 shadow-md">
+              <div className="flex items-center gap-2 mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
+                </svg>
+                <label className="block text-sm font-bold text-blue-700 dark:text-blue-300">Send Email Directly (NEW!)</label>
+              </div>
               <div className="flex gap-2">
                 <input
                   type="email"
                   placeholder="recipient@example.com"
                   value={recipientEmail}
                   onChange={(e) => setRecipientEmail(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-blue-300 dark:border-blue-700 rounded-lg bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-500"
+                  className="flex-1 px-4 py-3 border-2 border-blue-200 dark:border-blue-700 rounded-lg bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-500 font-medium focus:border-blue-500 focus:outline-none"
                 />
-                <Button variant="secondary" disabled={!recipientEmail || sendingEmail !== null}>
-                  Ready to Send
+                <Button 
+                  variant="secondary" 
+                  disabled={!recipientEmail || sendingEmail !== null}
+                  className={recipientEmail ? 'bg-blue-100 hover:bg-blue-200' : ''}
+                >
+                  ✓ Ready
                 </Button>
               </div>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">Emails are sent via Resend within 1–2 seconds</p>
             </div>
 
             <h2 className="text-2xl font-bold">Email Variants</h2>

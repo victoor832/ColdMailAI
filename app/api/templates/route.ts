@@ -131,13 +131,14 @@ export async function POST(req: NextRequest) {
 
     const validatedData = CreateTemplateSchema.parse(body);
 
-    // Check if template name already exists for this user
+    // Check if template name already exists for this user (informational only)
+    // The DB-level unique constraint on (user_id, name) provides the real protection
     const { data: existing } = await supabase
       .from('email_templates')
       .select('id')
       .eq('user_id', userId)
       .eq('name', validatedData.name)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       throw new AppError(409, 'Template with this name already exists', 'DUPLICATE_NAME');
@@ -160,6 +161,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
+      // Handle unique constraint violation (concurrent duplicate name attempts)
+      if (error.code === '23505' || error.message?.includes('unique constraint')) {
+        throw new AppError(409, 'Template with this name already exists', 'DUPLICATE_NAME');
+      }
       throw new AppError(500, 'Failed to create template', 'DB_ERROR');
     }
 

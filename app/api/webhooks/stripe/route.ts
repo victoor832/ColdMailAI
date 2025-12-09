@@ -434,11 +434,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const userId = userIdStr; // Keep as UUID string
 
     // Verify user exists in auth.users
-    const { data: user, error: userError } = await supabase
-      .from('auth.users')
-      .select('id, email')
-      .eq('id', userId)
-      .single();
+    const { data: { user }, error: userError } = await supabase.auth.admin.getUserById(userId);
 
     if (userError || !user) {
       logAction('CHECKOUT_SESSION_USER_NOT_FOUND', -1, { userId, userError: userError?.message });
@@ -473,20 +469,65 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     const creditsToAdd = product.credit_value;
 
+    // Extract payment intent ID - handle both string and object formats
+    let paymentIntentId: string | null = null;
+    if (session.payment_intent) {
+      if (typeof session.payment_intent === 'string') {
+        paymentIntentId = session.payment_intent;
+      } else if (typeof session.payment_intent === 'object' && 'id' in session.payment_intent) {
+        paymentIntentId = (session.payment_intent as any).id;
+      }
+    }
+
     logAction('CHECKOUT_SESSION_PROCESSING', userId, {
       sessionId: session.id,
+      paymentIntentId: paymentIntentId || 'none',
       creditsToAdd,
       plan,
       discount: session.total_details?.amount_discount || 0,
     });
+
+    // Check for existing payment record (idempotency)
+    // Try primary key (payment intent) first, then fallback to session ID
+    let existingPayment = null;
+    
+    if (paymentIntentId) {
+      const { data } = await supabase
+        .from('payments')
+        .select('id, credits_added')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .single();
+      existingPayment = data;
+    }
+    
+    // If not found and we have session ID, try fallback lookup
+    if (!existingPayment && session.id) {
+      const { data } = await supabase
+        .from('payments')
+        .select('id, credits_added')
+        .eq('stripe_session_id', session.id)
+        .single();
+      existingPayment = data;
+    }
+
+    // If payment already exists, don't create duplicate
+    if (existingPayment) {
+      logAction('CHECKOUT_PAYMENT_ALREADY_PROCESSED', userId, {
+        sessionId: session.id,
+        paymentIntentId: paymentIntentId || 'none',
+        creditsAdded: existingPayment.credits_added,
+      });
+      return;
+    }
 
     // Create payment record in payments table with UUID user_id
     const { data: paymentData, error: paymentInsertError } = await supabase
       .from('payments')
       .insert({
         user_id: userId, // UUID string
-        stripe_payment_intent_id: session.id,
-        stripe_customer_id: (session.customer as string) || '',
+        stripe_payment_intent_id: paymentIntentId, // Use actual payment intent ID, may be null
+        stripe_session_id: session.id, // Stripe Checkout Session ID (always available)
+        stripe_customer_id: typeof session.customer === 'string' ? session.customer : '',
         stripe_product_id: productId || null,
         stripe_price_id: priceId || null,
         amount: session.amount_total || 0,

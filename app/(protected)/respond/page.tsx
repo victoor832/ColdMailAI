@@ -7,6 +7,17 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading';
 
+// Format snake_case values to Title Case (e.g., "timing_issue" -> "Timing Issue")
+function formatValue(value: string | null | undefined): string {
+  if (!value || typeof value !== 'string') return 'N/A';
+  return value
+    .toLowerCase()
+    .trim()
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 export default function RespondPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -127,15 +138,15 @@ export default function RespondPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div className="card">
                 <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Sentiment</p>
-                <p className="text-2xl font-bold text-blue-600">{analysis.analysis?.sentiment}</p>
+                <p className="text-2xl font-bold text-blue-600">{formatValue(analysis.analysis?.sentiment)}</p>
               </div>
               <div className="card">
                 <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Objection Type</p>
-                <p className="text-2xl font-bold text-blue-600">{analysis.analysis?.objectionType}</p>
+                <p className="text-2xl font-bold text-blue-600">{formatValue(analysis.analysis?.objectionType)}</p>
               </div>
               <div className="card">
                 <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Urgency</p>
-                <p className="text-2xl font-bold text-blue-600">{analysis.analysis?.urgency}</p>
+                <p className="text-2xl font-bold text-blue-600">{formatValue(analysis.analysis?.urgency)}</p>
               </div>
               <div className="card">
                 <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">Recommended Action</p>
