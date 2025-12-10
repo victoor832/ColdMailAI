@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [recipientEmail, setRecipientEmail] = useState('');
   const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (status === 'authenticated') {
@@ -196,50 +197,104 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-white dark:bg-slate-950">
       {/* Navigation */}
       <nav className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 sticky top-0 z-40">
-        <div className="container py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-blue-600">
+        <div className="container px-6 py-4 flex justify-between items-center gap-4">
+          <Link href="/" className="text-2xl font-bold text-blue-600 flex-shrink-0">
             ColdMailAI
           </Link>
 
-          {/* Centered Credits Display */}
-          <div className="absolute left-1/2 transform -translate-x-1/2">
+          {/* Centered Credits Display - Hidden on small screens */}
+          <div className="hidden sm:block absolute left-1/2 transform -translate-x-1/2">
             <Link href="/pricing" className="group">
-              <div className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border-2 border-blue-200 dark:border-blue-800 rounded-lg hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="flex items-center gap-2 px-4 sm:px-6 py-2.5 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border-2 border-blue-200 dark:border-blue-800 rounded-lg hover:border-blue-400 dark:hover:border-blue-600 transition-all cursor-pointer whitespace-nowrap">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Credits:</span>
-                <span className="text-xl font-bold text-blue-600 dark:text-blue-400" title={credits === null ? 'Unlimited' : credits.toString()}>
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 hidden sm:inline">Credits:</span>
+                <span className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-400" title={credits === null ? 'Unlimited' : credits.toString()}>
                   {formatCredits(credits)}
                 </span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors hidden sm:inline flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
             </Link>
           </div>
 
-          <div className="flex gap-3 items-center">
+          {/* Desktop Navigation - Hidden on mobile */}
+          <div className="hidden lg:flex gap-2 items-center flex-shrink-0">
             <Link href="/research">
-              <Button variant="secondary">Research</Button>
+              <Button variant="secondary" size="sm">Research</Button>
             </Link>
             <Link href="/respond">
-              <Button variant="secondary">Respond</Button>
+              <Button variant="secondary" size="sm">Respond</Button>
             </Link>
             <Link href="/templates">
-              <Button variant="secondary">Templates</Button>
+              <Button variant="secondary" size="sm">Templates</Button>
             </Link>
             <Link href="/analytics">
-              <Button variant="secondary">Analytics</Button>
+              <Button variant="secondary" size="sm">Analytics</Button>
             </Link>
             <Button
               variant="destructive"
+              size="sm"
               onClick={() => signOut({ callbackUrl: '/' })}
             >
               Logout
             </Button>
           </div>
+
+          {/* Mobile Menu Button and Credits - Visible on mobile and tablet */}
+          <div className="lg:hidden flex items-center gap-3 flex-shrink-0">
+            {/* Mobile Credits */}
+            <Link href="/pricing" className="group sm:hidden">
+              <div className="flex items-center gap-1 px-2 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200 dark:border-blue-800 rounded hover:border-blue-400 transition-all">
+                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  {formatCredits(credits)}
+                </span>
+              </div>
+            </Link>
+
+            {/* Mobile Menu Hamburger */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-700 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={mobileMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+              </svg>
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+            <div className="container px-6 py-4 space-y-2 flex flex-col">
+              <Link href="/research" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="secondary" className="w-full justify-center">Research</Button>
+              </Link>
+              <Link href="/respond" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="secondary" className="w-full justify-center">Respond</Button>
+              </Link>
+              <Link href="/templates" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="secondary" className="w-full justify-center">Templates</Button>
+              </Link>
+              <Link href="/analytics" onClick={() => setMobileMenuOpen(false)}>
+                <Button variant="secondary" className="w-full justify-center">Analytics</Button>
+              </Link>
+              <Button
+                variant="destructive"
+                className="w-full justify-center"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  signOut({ callbackUrl: '/' });
+                }}
+              >
+                Logout
+              </Button>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Main Content */}
