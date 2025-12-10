@@ -91,10 +91,10 @@ export async function POST(req: NextRequest) {
       throw new AppError(400, 'Invalid URL format', 'INVALID_URL');
     }
 
-    // Analyze with Gemini with retry
+    // Analyze with Gemini with retry (3 attempts with 2 second delay)
     let analysis: any;
     try {
-      analysis = await withRetry(() => analyzeProspect(domain, content!, service), 2, 1000);
+      analysis = await withRetry(() => analyzeProspect(domain, content!, service), 3, 2000);
     } catch (error) {
       logAction('ANALYSIS_FAILED', userId, { domain, error: String(error) });
       throw new AppError(
@@ -134,9 +134,15 @@ export async function POST(req: NextRequest) {
 
     logAction('ANALYSIS_SUCCESS', userId, { domain, angles: analysis.angles.length });
 
+    // Normalize response: use 'company' instead of 'companyName' for consistency with frontend
+    const normalizedAnalysis = {
+      company: analysis.companyName,
+      angles: analysis.angles,
+    };
+
     return NextResponse.json({
       success: true,
-      data: analysis,
+      data: normalizedAnalysis,
     });
   } catch (error) {
     return handleError(error);

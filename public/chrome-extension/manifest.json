@@ -6,17 +6,25 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "webRequest"
   ],
   "host_permissions": [
     "https://mail.readytorelease.online/*",
-    "http://localhost:3000/*"
+    "http://localhost:3000/*",
+    "https://www.linkedin.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "ColdMailAI - Research Assistant"
   },
   "options_page": "settings.html",
+  "web_accessible_resources": [
+    {
+      "resources": ["history.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "background": {
     "service_worker": "background.js"
   },

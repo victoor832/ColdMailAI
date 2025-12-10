@@ -1,7 +1,7 @@
 // Configuration - Detect environment
-// In development (localhost), use http://localhost:3000
-// In production, use https://mail.readytorelease.online
 let API_BASE_URL = 'https://mail.readytorelease.online'; // Default to production
+const HISTORY_KEY = 'coldmailai_analysis_history';
+const MAX_HISTORY_ITEMS = 20;
 
 // Initialize API URL from storage
 async function initializeApiUrl() {
@@ -23,6 +23,7 @@ const EXTENSION_ID = chrome.runtime.id;
 // DOM Elements
 const analyzeBtn = document.getElementById('analyzeBtn');
 const loginBtn = document.getElementById('loginBtn');
+const dashboardBtn = document.getElementById('dashboardBtn');
 const currentUrlElement = document.getElementById('currentUrl');
 const serviceInput = document.getElementById('serviceInput');
 const errorDiv = document.getElementById('error');
@@ -31,6 +32,15 @@ const errorText = document.getElementById('errorText');
 const successText = document.getElementById('successText');
 const mainDiv = document.getElementById('main');
 const loadingDiv = document.getElementById('loading');
+
+// Tab management
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+
+// Settings elements
+const apiUrlInput = document.getElementById('apiUrlInput');
+const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+const resetSettingsBtn = document.getElementById('resetSettingsBtn');
 
 // Show error message
 function showError(message) {
@@ -140,17 +150,23 @@ async function getCurrentTabUrl() {
 // Check if user is logged in by verifying session
 async function checkUserSession() {
   try {
+    console.log('Checking session with API URL:', API_BASE_URL);
     const response = await fetch(`${API_BASE_URL}/api/auth/session`, {
       credentials: 'include', // Include cookies for session
     });
 
+    console.log('Session check response status:', response.status);
+
     if (!response.ok) {
-      console.log('Not logged in:', response.status);
+      console.log('Not logged in - status:', response.status);
       return false;
     }
 
     const session = await response.json();
-    return !!session?.user;
+    console.log('Session data received:', session);
+    const hasUser = !!session?.user;
+    console.log('Has user:', hasUser);
+    return hasUser;
   } catch (error) {
     console.error('Error checking session:', error);
     return false;
@@ -205,11 +221,11 @@ async function init() {
             currentUrlElement.style.fontWeight = '600';
           } catch (parseError) {
             console.error('URL parse error:', parseError);
-            currentUrlElement.textContent = stored.url || stored.companyName || '-';
+            currentUrlElement.textContent = stored.url || stored.company || stored.companyName || '-';
           }
         }
         
-        console.log('Showing pre-analyzed state with company:', stored.companyName);
+        console.log('Showing pre-analyzed state with company:', stored.company || stored.companyName);
       } else {
         console.log('Stored analysis is too old, ignoring');
       }
@@ -344,7 +360,7 @@ if (analyzeBtn) {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('API error:', errorData);
+        console.error('API error response:', errorData);
         
         if (response.status === 401) {
           showError('Your session expired. Please log in again.');
@@ -358,8 +374,18 @@ if (analyzeBtn) {
         throw new Error(errorData.error || errorData.message || `Analysis failed (${response.status})`);
       }
 
-      const data = await response.json();
-      console.log('Analysis successful:', data);
+      const response_data = await response.json();
+      console.log('Analysis API response:', response_data);
+      
+      // Extract the actual analysis data - API returns { success: true, data: { company, angles } }
+      const analysisData = response_data.data || response_data;
+      console.log('Extracted analysis data:', analysisData);
+
+      // Validate that we have angles
+      if (!analysisData.angles || !Array.isArray(analysisData.angles) || analysisData.angles.length === 0) {
+        console.error('Invalid response structure - no angles found:', analysisData);
+        throw new Error('Analysis returned no angles. Please try again.');
+      }
 
       // Save service to localStorage for persistence
       if (serviceInput?.value?.trim()) {
@@ -378,16 +404,17 @@ if (analyzeBtn) {
         }
       }
 
-      // Show success and store result
-      showSuccess('✅ Analysis complete! Opening dashboard...');
+      // Show success message
+      showSuccess('✅ Analysis complete!');
 
-      // Store result and open dashboard
+      // Store result
       try {
         await chrome.storage.local.set({
           lastAnalysis: {
             url: currentUrl,
             service: service,
-            data: data,
+            company: analysisData.company || 'Unknown Company',
+            angles: analysisData.angles,
             timestamp: Date.now(),
           },
         });
@@ -398,17 +425,20 @@ if (analyzeBtn) {
         return;
       }
 
-      // Open dashboard in new tab
-      setTimeout(() => {
-        chrome.tabs.create({
-          url: `${API_BASE_URL}/dashboard?from=extension`,
-        });
-        // Close popup
-        window.close();
-      }, 1500);
+      // Display results in the popup
+      displayResults({
+        url: currentUrl,
+        company: analysisData.company || 'Unknown Company',
+        angles: analysisData.angles || [],
+      });
+
+      // Switch to results tab
+      switchTab('results');
     } catch (error) {
       console.error('Error during analysis:', error);
-      showError(`Error: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Full error:', errorMessage);
+      showError(`Analysis failed: ${errorMessage}`);
       if (currentUrlElement) {
         currentUrlElement.textContent = '✗ Analysis failed';
         currentUrlElement.style.color = '#dc2626'; // Red
@@ -431,6 +461,237 @@ if (loginBtn) {
       window.close();
     }, 500);
   });
+}
+
+// Handle dashboard button click
+if (dashboardBtn) {
+  dashboardBtn.addEventListener('click', () => {
+    console.log('Dashboard button clicked, opening:', `${API_BASE_URL}/dashboard`);
+    chrome.tabs.create({
+      url: `${API_BASE_URL}/dashboard`,
+    });
+  });
+}
+
+// ========== TAB MANAGEMENT ==========
+function switchTab(tabName) {
+  // Hide all tabs
+  tabContents.forEach(tab => tab.classList.remove('active'));
+  
+  // Deactivate all buttons
+  tabBtns.forEach(btn => btn.classList.remove('active'));
+  
+  // Show selected tab
+  const selectedTab = document.getElementById(`${tabName}-tab`);
+  if (selectedTab) {
+    selectedTab.classList.add('active');
+  }
+  
+  // Activate button
+  const activeBtn = document.querySelector(`[data-tab="${tabName}"]`);
+  if (activeBtn) {
+    activeBtn.classList.add('active');
+  }
+
+  // Load history when switching to history tab
+  if (tabName === 'history') {
+    loadHistoryTab();
+  }
+
+  // Load settings when switching to settings tab
+  if (tabName === 'settings') {
+    loadSettingsTab();
+  }
+}
+
+// Tab button listeners
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabName = btn.getAttribute('data-tab');
+    switchTab(tabName);
+  });
+});
+
+// ========== HISTORY MANAGEMENT ==========
+function getHistory() {
+  try {
+    const data = localStorage.getItem(HISTORY_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('Error loading history:', error);
+    return [];
+  }
+}
+
+function saveToHistory(analysis) {
+  try {
+    const history = getHistory();
+    const item = {
+      id: Date.now().toString(),
+      company: analysis.company || 'Unknown',
+      url: analysis.url,
+      angles: analysis.angles || [],
+      emails: analysis.emails || [],
+      timestamp: new Date().toISOString(),
+    };
+
+    history.unshift(item); // Add to beginning
+
+    // Keep only last MAX_HISTORY_ITEMS
+    if (history.length > MAX_HISTORY_ITEMS) {
+      history.pop();
+    }
+
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    return item;
+  } catch (error) {
+    console.error('Error saving to history:', error);
+  }
+}
+
+function loadHistoryTab() {
+  const history = getHistory();
+  const historyEmpty = document.getElementById('history-empty');
+  const historyContent = document.getElementById('history-content');
+
+  if (history.length === 0) {
+    historyEmpty.style.display = 'block';
+    historyContent.style.display = 'none';
+    return;
+  }
+
+  historyEmpty.style.display = 'none';
+  historyContent.style.display = 'grid';
+  historyContent.innerHTML = history
+    .map(item => `
+      <div class="history-item-mini">
+        <div class="history-item-company">${escapeHtml(item.company)}</div>
+        <div class="history-item-time">${formatDate(item.timestamp)}</div>
+        <div style="margin-top: 6px;">
+          <a class="history-link" data-history-id="${escapeHtml(item.id)}">View analysis →</a>
+        </div>
+      </div>
+    `).join('');
+  
+  // Add event delegation for history links
+  historyContent.querySelectorAll('.history-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = link.getAttribute('data-history-id');
+      console.log('History link clicked, loading item:', id);
+      loadHistoryItem(id);
+    });
+  });
+}
+
+function loadHistoryItem(id) {
+  const history = getHistory();
+  const item = history.find(i => i.id === id);
+
+  if (!item) {
+    alert('Analysis not found');
+    return;
+  }
+
+  displayResults(item);
+  switchTab('results');
+}
+
+function formatDate(isoString) {
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return date.toLocaleDateString();
+}
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return String(text).replace(/[&<>"']/g, (m) => map[m]);
+}
+
+// ========== SETTINGS MANAGEMENT ==========
+function loadSettingsTab() {
+  chrome.storage.local.get(['apiBaseUrl'], (result) => {
+    if (result.apiBaseUrl) {
+      apiUrlInput.value = result.apiBaseUrl;
+    } else {
+      apiUrlInput.value = 'https://mail.readytorelease.online';
+    }
+  });
+}
+
+if (saveSettingsBtn) {
+  saveSettingsBtn.addEventListener('click', () => {
+    const url = apiUrlInput.value.trim();
+
+    try {
+      new URL(url);
+    } catch (e) {
+      showError('Invalid URL format');
+      return;
+    }
+
+    chrome.storage.local.set({ apiBaseUrl: url }, () => {
+      API_BASE_URL = url;
+      showSuccess('✅ Settings saved!');
+    });
+  });
+}
+
+if (resetSettingsBtn) {
+  resetSettingsBtn.addEventListener('click', () => {
+    chrome.storage.local.remove(['apiBaseUrl'], () => {
+      API_BASE_URL = 'https://mail.readytorelease.online';
+      apiUrlInput.value = API_BASE_URL;
+      showSuccess('🔄 Reset to default');
+    });
+  });
+}
+
+// ========== DISPLAY RESULTS ==========
+function displayResults(analysis) {
+  const anglesContainer = document.getElementById('anglesContainer');
+  const resultsPlaceholder = document.getElementById('results-placeholder');
+  const resultsContent = document.getElementById('results-content');
+
+  if (!analysis.angles || analysis.angles.length === 0) {
+    showError('No angles found in analysis');
+    return;
+  }
+
+  resultsPlaceholder.style.display = 'none';
+  resultsContent.style.display = 'block';
+
+  anglesContainer.innerHTML = analysis.angles
+    .map((angle, idx) => {
+      // Map Gemini response structure to display format
+      const title = angle.hook || angle.title || `Angle ${idx + 1}`;
+      const description = angle.reasoning || angle.connection || angle.description || '';
+      const evidence = angle.evidence ? `<div class="angle-evidence"><strong>Evidence:</strong> ${escapeHtml(angle.evidence)}</div>` : '';
+      
+      return `
+        <div class="angle-preview-card">
+          <div class="angle-title">Angle ${idx + 1}: ${escapeHtml(title)}</div>
+          <div class="angle-description">${escapeHtml(description)}</div>
+          ${evidence}
+        </div>
+      `;
+    }).join('');
+
+  // Save to history
+  saveToHistory(analysis);
 }
 
 // Initialize on load

@@ -1,14 +1,25 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+// Validate API key on startup
+if (!process.env.GEMINI_API_KEY) {
+  console.error('❌ GEMINI_API_KEY is not configured!');
+  throw new Error('GEMINI_API_KEY environment variable is required');
+}
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Use available models in priority order: lite version first (faster), then fallback to non-lite
+const modelName = 'gemini-2.5-flash-lite';
 
 const model = genAI.getGenerativeModel({
-  model: 'gemini-2.5-flash',
+  model: modelName,
   generationConfig: {
     maxOutputTokens: 4096,
     temperature: 1,
   },
 });
+
+console.log('✅ Gemini API initialized with model:', modelName);
 
 export const ANALYZE_PROSPECT_PROMPT = (company: string, content: string, service: string) => `
 You are an expert cold email prospecting specialist.
@@ -175,55 +186,102 @@ Requirements:
 `;
 
 export async function analyzeProspect(company: string, content: string, service: string) {
-  try {
-    const prompt = ANALYZE_PROSPECT_PROMPT(company, content, service);
-    const result = await model.generateContent(prompt);
-    let text = result.response.text();
-
-    console.log('=== GEMINI RAW RESPONSE ===');
-    console.log(text);
-    console.log('=== END RAW RESPONSE ===');
-
-    // Remove markdown code blocks
-    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-    // Try to find complete JSON object
-    let jsonStr: string | null = null;
-    
-    // Strategy 1: Find first { and last }
-    const firstBrace = text.indexOf('{');
-    const lastBrace = text.lastIndexOf('}');
-    
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      jsonStr = text.substring(firstBrace, lastBrace + 1);
-    }
-
-    if (!jsonStr) {
-      throw new Error(`Could not extract JSON from response: ${text.substring(0, 300)}`);
-    }
-
-    console.log('Extracted JSON:', jsonStr.substring(0, 300));
-
+  let lastError: Error | null = null;
+  // Order: lite first (faster), then regular versions
+  const models = ['gemini-2.5-flash-lite', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
+  
+  for (const modelName of models) {
     try {
-      return JSON.parse(jsonStr);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      console.error('JSON string:', jsonStr.substring(0, 500));
+      // Validate inputs
+      if (!company || !content || !service) {
+        throw new Error(`Missing required inputs: company=${!!company}, content=${!!content}, service=${!!service}`);
+      }
+
+      let contentToUse = content;
+      if (contentToUse.length > 30000) {
+        console.warn(`Content is very long (${contentToUse.length} chars), truncating to 30000 chars`);
+        contentToUse = contentToUse.substring(0, 30000);
+      }
+
+      const prompt = ANALYZE_PROSPECT_PROMPT(company, contentToUse, service);
+      console.log(`Calling Gemini API (${modelName}) with company: ${company}, service: ${service}, content length: ${contentToUse.length}`);
       
-      // Last resort: try to fix escaped newlines in strings
-      let fixed = jsonStr
-        .replace(/\n/g, ' ') // Replace actual newlines with spaces
-        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
-        .replace(/:\s*undefined/g, ': null')
-        .replace(/([^\\])"/g, "$1'") // This is risky, skip it
-        .trim();
+      // Get model for this attempt
+      const attemptModel = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          maxOutputTokens: 4096,
+          temperature: 1,
+        },
+      });
       
-      return JSON.parse(fixed);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Gemini API timeout (${modelName}) after 30 seconds`)), 30000)
+      );
+      
+      const result = await Promise.race([
+        attemptModel.generateContent(prompt),
+        timeoutPromise as Promise<any>
+      ]);
+      
+      let text = result.response.text();
+
+      console.log(`=== GEMINI RESPONSE (${modelName}) ===`);
+      console.log(text.substring(0, 500)); // Log only first 500 chars
+      console.log('=== END RESPONSE ===');
+
+      // Remove markdown code blocks
+      text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+      // Try to find complete JSON object
+      let jsonStr: string | null = null;
+      
+      // Strategy 1: Find first { and last }
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonStr = text.substring(firstBrace, lastBrace + 1);
+      }
+
+      if (!jsonStr) {
+        throw new Error(`Could not extract JSON from response: ${text.substring(0, 300)}`);
+      }
+
+      console.log('Extracted JSON:', jsonStr.substring(0, 300));
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        console.log(`✅ Successfully analyzed with ${modelName}`);
+        return parsed;
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('JSON string:', jsonStr.substring(0, 500));
+        
+        // Last resort: try to fix escaped newlines in strings
+        let fixed = jsonStr
+          .replace(/\n/g, ' ') // Replace actual newlines with spaces
+          .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+          .replace(/:\s*undefined/g, ': null')
+          .trim();
+        
+        return JSON.parse(fixed);
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`❌ Analysis failed with ${modelName}:`, lastError.message);
+      
+      // If this is the last model, throw the error
+      if (modelName === models[models.length - 1]) {
+        throw lastError;
+      }
+      // Otherwise, continue to next model
+      console.log(`Retrying with next model...`);
     }
-  } catch (error) {
-    console.error('Analyze prospect error:', error);
-    throw error;
   }
+  
+  throw lastError || new Error('Analysis failed with all available models');
 }
 
 export async function generateEmails(company: string, hook: string, evidence: string, service: string) {
