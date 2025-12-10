@@ -23,7 +23,7 @@ const UpdateTemplateSchema = z.object({
 
 // Helper: Check template ownership
 async function checkTemplateOwnership(
-  userId: string, // UUID from auth.users
+  userId: number, // BIGINT from users table
   templateId: string
 ): Promise<boolean> {
   const { data, error } = await supabase
@@ -47,7 +47,7 @@ async function checkTemplateOwnership(
     return false;
   }
 
-  // Check ownership
+  // Check ownership (both should be numbers)
   return data.user_id === userId;
 }
 
@@ -59,16 +59,12 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id || typeof session.user.id !== 'string' || !session.user.id.trim()) {
+    if (!session?.user?.id) {
       throw new AppError(401, 'Unauthorized - invalid session', 'UNAUTHORIZED');
     }
 
-    // Validate UUID format (basic check for UUID v4)
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.user.id)) {
-      throw new AppError(400, 'Invalid user ID format', 'INVALID_USER_ID');
-    }
-
-    const userId = session.user.id; // UUID string from auth.users
+    // Convert userId to number (NextAuth provides it as string)
+    const userId = parseInt(session.user.id, 10);
     const templateId = params.id;
 
     // Fetch template
@@ -106,16 +102,12 @@ export async function PATCH(
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id || typeof session.user.id !== 'string' || !session.user.id.trim()) {
+    if (!session?.user?.id) {
       throw new AppError(401, 'Unauthorized - invalid session', 'UNAUTHORIZED');
     }
 
-    // Validate UUID format (basic check for UUID v4)
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.user.id)) {
-      throw new AppError(400, 'Invalid user ID format', 'INVALID_USER_ID');
-    }
-
-    const userId = session.user.id; // UUID string from auth.users
+    // Convert userId to number (NextAuth provides it as string)
+    const userId = parseInt(session.user.id, 10);
     const templateId = params.id;
 
     // Check ownership
@@ -185,16 +177,12 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id || typeof session.user.id !== 'string' || !session.user.id.trim()) {
+    if (!session?.user?.id) {
       throw new AppError(401, 'Unauthorized - invalid session', 'UNAUTHORIZED');
     }
 
-    // Validate UUID format (basic check for UUID v4)
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.user.id)) {
-      throw new AppError(400, 'Invalid user ID format', 'INVALID_USER_ID');
-    }
-
-    const userId = session.user.id; // UUID string from auth.users
+    // Convert userId to number (NextAuth provides it as string)
+    const userId = parseInt(session.user.id, 10);
     const templateId = params.id;
 
     // Check ownership

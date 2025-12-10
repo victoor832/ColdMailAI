@@ -102,4 +102,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true; // Indicate asynchronous response
   }
+
+  if (request.action === 'requestWebPermissions') {
+    // Request optional permissions for content script injection
+    // This extension is a research tool that works best with broad web access,
+    // but we restrict to common business/research sites for privacy consideration.
+    // Users can manually enable for all sites in chrome://extensions if needed.
+    const targetOrigins = [
+      'https://mail.google.com/*',
+      'https://www.linkedin.com/*',
+      'https://www.crunchbase.com/*',
+      'https://www.indeed.com/*',
+      'https://www.glassdoor.com/*',
+      'https://www.techcrunch.com/*',
+      'https://www.producthunt.com/*',
+      'https://*/*',  // Fallback to any HTTPS site (user can restrict further)
+      'http://*/*'    // Fallback to any HTTP site
+    ];
+    
+    chrome.permissions.request({
+      permissions: [],
+      origins: targetOrigins
+    }, (granted) => {
+      if (granted) {
+        console.log('Web permissions granted for:', targetOrigins);
+        sendResponse({ success: true, granted: true });
+      } else {
+        console.log('Web permissions denied');
+        sendResponse({ success: true, granted: false });
+      }
+    });
+    return true; // Indicate asynchronous response
+  }
 });

@@ -98,6 +98,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true;
   }
+  
+  // Handle popup requesting current page URL
+  if (request.action === 'getPageUrl') {
+    try {
+      const currentUrl = window.location.href;
+      console.log('Content script sending page URL to popup:', currentUrl);
+      sendResponse({
+        success: true,
+        url: currentUrl,
+      });
+    } catch (error) {
+      console.error('Error getting page URL:', error);
+      sendResponse({
+        success: false,
+        error: error.message,
+      });
+    }
+    return true;
+  }
 });
 
 // Detect when user logs in via the extension
@@ -182,13 +201,53 @@ function addExtensionIndicator() {
     };
   }
 
+  // Helper function to reset indicator state on error
+  const resetIndicatorState = (innerDiv) => {
+    if (!innerDiv) return;
+    
+    // Restore original state: favicon + "ColdMailAI Active"
+    innerDiv.innerHTML = `
+      <img id="coldmailai-favicon" src="chrome://favicon/size/20@1x/https://mail.readytorelease.online/" alt="ColdMailAI" style="width: 20px; height: 20px; margin-right: 8px; border-radius: 4px; flex-shrink: 0;" /> ColdMailAI Active
+    `;
+    
+    // Re-attach error handler for favicon
+    const faviconImg = innerDiv.querySelector('#coldmailai-favicon');
+    if (faviconImg) {
+      faviconImg.onerror = function() {
+        this.style.display = 'none';
+        const fallback = document.createElement('span');
+        fallback.textContent = '💌';
+        fallback.style.fontSize = '14px';
+        fallback.style.marginRight = '8px';
+        fallback.style.display = 'inline-flex';
+        this.parentNode.insertBefore(fallback, this);
+      };
+    }
+    
+    // Restore original blue gradient
+    innerDiv.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+    
+    // Restore opacity to full
+    innerDiv.style.opacity = '1';
+  };
+
   indicator.addEventListener('click', () => {
+    // Change indicator to show analyzing state
+    const innerDiv = indicator.querySelector('div');
+    if (innerDiv) {
+      innerDiv.textContent = '⏳ Opening ColdMailAI...';
+      innerDiv.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+      innerDiv.style.opacity = '0.8';
+    }
+    
     // First, analyze the current page
     const currentUrl = window.location.href;
     
     try {
       const urlObj = new URL(currentUrl);
       const companyName = extractCompanyName(urlObj.hostname);
+      
+      console.log('Storing analysis:', { url: currentUrl, companyName, timestamp: Date.now() });
       
       // Store the analysis result in storage so popup can access it
       chrome.storage.local.set({
@@ -201,6 +260,8 @@ function addExtensionIndicator() {
         // Check for storage errors
         if (chrome.runtime.lastError) {
           console.error('Failed to store analysis:', chrome.runtime.lastError.message);
+          // Reset indicator state on storage error
+          resetIndicatorState(innerDiv);
           // Still open popup but without analysis data
           chrome.runtime.sendMessage({ 
             action: 'openPopup',
@@ -208,11 +269,14 @@ function addExtensionIndicator() {
           });
         } else {
           // Storage successful, open popup with analysis data available
+          console.log('Analysis stored successfully, opening popup');
           chrome.runtime.sendMessage({ action: 'openPopup' });
         }
       });
     } catch (error) {
       console.error('Error analyzing page:', error);
+      // Reset indicator state on analysis error
+      resetIndicatorState(innerDiv);
       chrome.runtime.sendMessage({ 
         action: 'openPopup',
         analysisError: true 

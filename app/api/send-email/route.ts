@@ -4,10 +4,16 @@ import { authOptions } from '@/lib/auth';
 import {
   handleError,
   AppError,
-  checkRateLimit,
   logAction,
 } from '@/lib/error-handler';
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client for server-side operations
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // HTML escape function to prevent injection attacks
 function escapeHtml(text: string): string {
@@ -23,24 +29,53 @@ function escapeHtml(text: string): string {
 
 // Hash function for consistent anonymization of sensitive values
 function hashSensitiveValue(value: string): string {
-  // Simple deterministic hash for logging - not for security
   let hash = 0;
   for (let i = 0; i < value.length; i++) {
     const char = value.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash | 0; // Convert to 32-bit signed integer
+    hash = hash | 0;
   }
   return `hash_${Math.abs(hash).toString(36).substring(0, 8)}`;
 }
 
+// Rate limits per plan (emails per month)
+const RATE_LIMITS = {
+  free: 10,
+  pro: 500,
+  unlimited: 999999,
+};
+
 // Initialize Resend
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@mail.readytorelease.online';
 
 const SendEmailSchema = z.object({
   to: z.string().email('Invalid email address'),
   subject: z.string().min(3, 'Subject too short').max(200, 'Subject too long'),
   body: z.string().min(10, 'Body too short').max(10000, 'Body too long'),
 });
+
+// Get emails sent this month
+async function getEmailsSentThisMonth(userId: string): Promise<number> {
+  try {
+    const firstDayOfMonth = new Date();
+    firstDayOfMonth.setDate(1);
+    firstDayOfMonth.setHours(0, 0, 0, 0);
+
+    const { count, error } = await supabase
+      .from('email_sends')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('status', 'sent')
+      .gte('created_at', firstDayOfMonth.toISOString());
+
+    if (error) throw error;
+    return count || 0;
+  } catch (error) {
+    console.error('Error counting emails sent:', error);
+    return 0;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,9 +98,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Rate limiting: 20 emails per hour
-    checkRateLimit(`send-email:${userId}`, 20, 3600000);
-
     // Parse and validate request body
     let body: any;
     try {
@@ -76,6 +108,30 @@ export async function POST(req: NextRequest) {
 
     // Validate schema
     const validatedData = SendEmailSchema.parse(body);
+
+    // Get user subscription plan for rate limiting
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('subscription_plan')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      throw new AppError(404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    const plan = (userData.subscription_plan || 'free') as keyof typeof RATE_LIMITS;
+    const limit = RATE_LIMITS[plan] || RATE_LIMITS.free;
+
+    // Check rate limit
+    const emailsSentThisMonth = await getEmailsSentThisMonth(userId);
+    if (emailsSentThisMonth >= limit) {
+      throw new AppError(
+        429,
+        `Email limit exceeded. You've sent ${emailsSentThisMonth}/${limit} emails this month.`,
+        'RATE_LIMIT_EXCEEDED'
+      );
+    }
 
     // Escape user inputs for HTML context
     const escapedUserEmail = escapeHtml(userEmail);
@@ -89,13 +145,13 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || 'noreply@mail.readytorelease.online',
+        from: RESEND_FROM_EMAIL,
         to: validatedData.to,
         subject: validatedData.subject,
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
+              <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
                 <h1 style="margin: 0; font-size: 24px;">ColdMailAI</h1>
                 <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">AI-Powered Cold Email</p>
               </div>
@@ -118,21 +174,24 @@ export async function POST(req: NextRequest) {
       }),
     });
 
+    let resendMessageId: string | null = null;
+    let sendError: string | null = null;
+
     if (!response.ok) {
       let errorMessage = 'Unknown error from email service';
       let rawBody = '';
 
       try {
-        // Read response body once as text
         rawBody = await response.text();
-        
-        // Try to parse as JSON to extract error message
+        console.error('Resend error response:', {
+          status: response.status,
+          body: rawBody,
+        });
         if (rawBody) {
           try {
             const errorJson = JSON.parse(rawBody);
             errorMessage = errorJson.message || errorJson.error || rawBody || `HTTP ${response.status}`;
           } catch {
-            // JSON parse failed, use raw text as error message
             errorMessage = rawBody || `HTTP ${response.status}`;
           }
         } else {
@@ -142,58 +201,67 @@ export async function POST(req: NextRequest) {
         errorMessage = `HTTP ${response.status}: Failed to read error response`;
       }
 
+      sendError = errorMessage;
       logAction('EMAIL_SEND_FAILED', userId, {
         recipientHash: hashSensitiveValue(validatedData.to),
         error: errorMessage,
         status: response.status,
-        rawBody: rawBody.substring(0, 500), // Limit to first 500 chars for logging
       });
-      throw new AppError(
-        response.status,
-        `Failed to send email: ${errorMessage}`,
-        'EMAIL_SEND_ERROR'
-      );
-    }
-
-    let resendResponse: any;
-    try {
-      resendResponse = await response.json();
-    } catch (parseError) {
-      // JSON parsing failed - capture raw response text for diagnostics
-      let rawResponseText = '';
+    } else {
       try {
-        rawResponseText = await response.text();
-      } catch {
-        rawResponseText = '(unable to read response body)';
-      }
+        const resendResponse = await response.json();
+        resendMessageId = resendResponse.id;
 
-      logAction('EMAIL_RESPONSE_PARSE_ERROR', userId, {
-        recipientHash: hashSensitiveValue(validatedData.to),
-        error: 'Failed to parse successful response as JSON',
-        parseError: String(parseError),
-        rawResponse: rawResponseText.substring(0, 500), // Limit to first 500 chars
-      });
-      throw new AppError(
-        500,
-        'Email sent but failed to parse response',
-        'EMAIL_RESPONSE_ERROR'
-      );
+        logAction('EMAIL_SENT', userId, {
+          recipientHash: hashSensitiveValue(validatedData.to),
+          subjectHash: hashSensitiveValue(validatedData.subject),
+          resendId: resendMessageId,
+          status: 'sent',
+        });
+      } catch (parseError) {
+        sendError = 'Failed to parse response';
+        logAction('EMAIL_RESPONSE_PARSE_ERROR', userId, {
+          recipientHash: hashSensitiveValue(validatedData.to),
+          error: String(parseError),
+        });
+      }
     }
 
-    // Log successful send - without storing raw PII
-    logAction('EMAIL_SENT', userId, {
-      recipientHash: hashSensitiveValue(validatedData.to),
-      subjectHash: hashSensitiveValue(validatedData.subject),
-      resendId: resendResponse.id,
-      status: 'sent',
-    });
+    // Save to database regardless of send status
+    try {
+      const { error: insertError } = await supabase
+        .from('email_sends')
+        .insert([
+          {
+            user_id: userId,
+            prospect_email: validatedData.to.toLowerCase().trim(),
+            subject: validatedData.subject.trim(),
+            body: validatedData.body.trim(),
+            status: sendError ? 'failed' : 'sent',
+            resend_message_id: resendMessageId,
+            error_message: sendError,
+          },
+        ]);
+
+      if (insertError) throw insertError;
+    } catch (dbError) {
+      console.error('Error saving email to database:', dbError);
+      // Don't fail the response if DB save fails
+    }
+
+    // Return response
+    if (sendError) {
+      throw new AppError(500, `Failed to send email: ${sendError}`, 'EMAIL_SEND_ERROR');
+    }
 
     return NextResponse.json(
       {
         success: true,
         message: 'Email sent successfully',
-        emailId: resendResponse.id,
-        from: process.env.RESEND_FROM_EMAIL || 'noreply@mail.readytorelease.online',
+        emailId: resendMessageId,
+        emailsSent: emailsSentThisMonth + 1,
+        limit,
+        from: RESEND_FROM_EMAIL,
       },
       { status: 200 }
     );

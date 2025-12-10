@@ -226,6 +226,9 @@ export default function DashboardPage() {
             <Link href="/respond">
               <Button variant="secondary">Respond</Button>
             </Link>
+            <Link href="/templates">
+              <Button variant="secondary">Templates</Button>
+            </Link>
             <Link href="/analytics">
               <Button variant="secondary">Analytics</Button>
             </Link>

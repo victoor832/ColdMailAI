@@ -87,7 +87,13 @@ export async function GET(req: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      throw new AppError(500, 'Failed to fetch templates', 'DB_ERROR');
+      console.error('Supabase select error:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      throw new AppError(500, `Failed to fetch templates: ${error.message}`, 'DB_ERROR');
     }
 
     logAction('TEMPLATES_LISTED', userId, { count, category, includePublic });
@@ -161,11 +167,17 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
+      console.error('Supabase insert error:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
       // Handle unique constraint violation (concurrent duplicate name attempts)
       if (error.code === '23505' || error.message?.includes('unique constraint')) {
         throw new AppError(409, 'Template with this name already exists', 'DUPLICATE_NAME');
       }
-      throw new AppError(500, 'Failed to create template', 'DB_ERROR');
+      throw new AppError(500, `Failed to create template: ${error.message}`, 'DB_ERROR');
     }
 
     logAction('TEMPLATE_CREATED', userId, {

@@ -45,7 +45,7 @@ Un SaaS completo para generar cold emails específicos con IA usando análisis d
 - **Backend**: Next.js API Routes, NextAuth.js, Supabase PostgreSQL
 - **Base de datos**: Supabase PostgreSQL
 - **IA**: Gemini 2.5 Flash - Análisis profundo de sitios
-- **Web Scraping**: Cheerio (local, sin costo)
+- **Web Scraping**: Cheerio (fast HTML parsing) + Playwright (JavaScript-heavy sites fallback)
 - **Pagos**: Stripe - 3 planes (Starter, Pro, Unlimited)
 - **Email**: Resend - Sending desde dominio verificado
 - **Analytics**: Umami (self-hosted) + Vercel Analytics
@@ -186,7 +186,7 @@ ExecOS/
 │   ├── db.ts                      # Database queries (Supabase)
 │   ├── error-handler.ts           # Custom error handling
 │   ├── gemini.ts                  # Gemini AI integration
-│   ├── scraper.ts                 # Web scraping with Cheerio
+│   ├── scraper.ts                 # Web scraping: Cheerio (fast) + Playwright fallback (JS-heavy)
 │   ├── stripe.ts                  # Stripe payment helpers
 │   ├── utils.ts                   # Utility functions (CSV export)
 │   └── validation.ts              # Zod schemas

@@ -12,7 +12,7 @@ import { z } from 'zod';
 // Schemas
 const ShareTemplateSchema = z
   .object({
-    userIds: z.array(z.string().uuid('Each user ID must be a valid UUID')).optional(),
+    userIds: z.array(z.string().email('Each user ID must be a valid email')).optional(),
     makePublic: z.boolean().optional(),
   })
   .refine(
@@ -31,16 +31,12 @@ export async function POST(
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id || typeof session.user.id !== 'string' || !session.user.id.trim()) {
+    if (!session?.user?.id) {
       throw new AppError(401, 'Unauthorized - invalid session', 'UNAUTHORIZED');
     }
 
-    // Validate UUID format
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.user.id)) {
-      throw new AppError(400, 'Invalid user ID format', 'INVALID_USER_ID');
-    }
-
-    const userId = session.user.id; // UUID string from auth.users
+    // Convert userId to number (NextAuth provides it as string)
+    const userId = parseInt(session.user.id, 10);
     const templateId = params.id;
 
     if (!templateId) {

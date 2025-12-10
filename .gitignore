@@ -73,3 +73,4 @@ docs/**
 *.sh
 .npmrc
 todo.md
+test-suite.js
