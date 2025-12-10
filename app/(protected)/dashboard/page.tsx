@@ -8,11 +8,9 @@ import { Modal } from '@/components/ui/modal';
 import { LoadingButton, LoadingPage } from '@/components/ui/loading';
 import { useEffect, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { exportToCSV } from '@/lib/utils';
 import { toast } from 'sonner';
 
-// Note: exportToCSV() throws Error('No data to export') on empty data
-// All calls must be wrapped in try-catch for proper error handling
+// Note: CSV export now uses server-side API endpoint for proper plan-based access control
 
 // Validate email format using robust regex pattern
 function isValidEmail(email: string): boolean {
@@ -44,6 +42,7 @@ export default function DashboardPage() {
     responses: [],
   });
   const [credits, setCredits] = useState<number | null>(0);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string>('free');
   const [selectedResearch, setSelectedResearch] = useState<any>(null);
   const [selectedResponse, setSelectedResponse] = useState<any>(null);
   const [emails, setEmails] = useState<any>(null);
@@ -67,12 +66,15 @@ export default function DashboardPage() {
         setHistory(data);
       }
       
-      // Fetch user stats including credits
+      // Fetch user stats including credits and subscription plan
       const statsRes = await fetch('/api/user/stats');
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         // Set credits directly - null for unlimited, number for limited
         setCredits(statsData.credits !== undefined ? statsData.credits : 0);
+        // Set subscription plan
+        setSubscriptionPlan(statsData.subscriptionPlan || 'free');
+        console.log('📊 Subscription plan loaded:', statsData.subscriptionPlan);
       }
     } catch (error) {
       console.error('Failed to fetch history:', error);
@@ -428,20 +430,42 @@ export default function DashboardPage() {
           <div>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold">Recent Research</h2>
-              {history.research.length > 0 && (
+              {history.research.length > 0 && (subscriptionPlan === 'pro' || subscriptionPlan === 'unlimited') && (
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     try {
-                      exportToCSV(history.research, `research-export-${new Date().toISOString().split('T')[0]}.csv`);
-                      alert('✅ Research data exported successfully!');
+                      const response = await fetch('/api/export/csv', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}),
+                      });
+
+                      if (!response.ok) {
+                        const error = await response.json();
+                        toast.error(error.error || 'Failed to export CSV');
+                        return;
+                      }
+
+                      // Get filename from response headers
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = `coldmailai-research-${new Date().toISOString().split('T')[0]}.csv`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(url);
+                      
+                      toast.success('✅ Research data exported successfully!');
                     } catch (error) {
                       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                       console.error('Export failed:', error);
-                      alert(`❌ Export failed: ${errorMessage}`);
+                      toast.error(`❌ Export failed: ${errorMessage}`);
                     }
                   }}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg transition-colors"
-                  title="Download research data as CSV"
+                  title="Download research data as CSV (Pro plan required)"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -482,20 +506,41 @@ export default function DashboardPage() {
           <div>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold">Recent Responses</h2>
-              {history.responses.length > 0 && (
+              {history.responses.length > 0 && (subscriptionPlan === 'pro' || subscriptionPlan === 'unlimited') && (
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     try {
-                      exportToCSV(history.responses, `responses-export-${new Date().toISOString().split('T')[0]}.csv`);
-                      alert('✅ Response data exported successfully!');
+                      const response = await fetch('/api/export/csv', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({}),
+                      });
+
+                      if (!response.ok) {
+                        const error = await response.json();
+                        toast.error(error.error || 'Failed to export CSV');
+                        return;
+                      }
+
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = `coldmailai-responses-${new Date().toISOString().split('T')[0]}.csv`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(url);
+                      
+                      toast.success('✅ Response data exported successfully!');
                     } catch (error) {
                       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                       console.error('Export failed:', error);
-                      alert(`❌ Export failed: ${errorMessage}`);
+                      toast.error(`❌ Export failed: ${errorMessage}`);
                     }
                   }}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400 rounded-lg transition-colors"
-                  title="Download response analysis data as CSV"
+                  title="Download response analysis data as CSV (Pro plan required)"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

@@ -40,7 +40,7 @@ export async function createUser(email: string, passwordHash: string) {
           email,
           password_hash: passwordHash,
           credits: 3,
-          plan: 'free',
+          subscription_plan: 'free',
         },
       ])
       .select();

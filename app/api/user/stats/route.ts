@@ -78,12 +78,32 @@ export async function GET(req: NextRequest) {
       // Don't fail - this is secondary data
     }
 
-    logAction('STATS_RETRIEVED', userId, { credits, responsesCount, researchCount });
+    // Fetch user subscription plan
+    let subscriptionPlan = 'free';
+    try {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('subscription_plan')
+        .eq('id', userId)
+        .single();
+
+      if (userError) {
+        logAction('GET_SUBSCRIPTION_PLAN_FAILED', userId, { error: userError.message });
+      } else if (userData?.subscription_plan) {
+        subscriptionPlan = userData.subscription_plan;
+      }
+    } catch (error) {
+      logAction('GET_SUBSCRIPTION_PLAN_ERROR', userId, { error: String(error) });
+      // Don't fail - this is secondary data, default to free
+    }
+
+    logAction('STATS_RETRIEVED', userId, { credits, responsesCount, researchCount, subscriptionPlan });
 
     return NextResponse.json({
       credits,
       responsesCount,
       researchCount,
+      subscriptionPlan,
       email: session.user.email,
     });
   } catch (error) {

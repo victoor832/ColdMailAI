@@ -23,7 +23,7 @@ export default function PricingPage() {
       price: '$19',
       credits: 25,
       planName: 'pro',
-      features: ['25 Researches', 'Priority support', 'Advanced analytics', 'API access'],
+      features: ['25 Researches', 'Priority support', 'Advanced analytics', 'API access', 'CSV Export'],
       highlighted: true,
     },
     {

@@ -1,5 +1,23 @@
-// Configuration
-const API_BASE_URL = 'https://mail.readytorelease.online';
+// Configuration - Detect environment
+// In development (localhost), use http://localhost:3000
+// In production, use https://mail.readytorelease.online
+let API_BASE_URL = 'https://mail.readytorelease.online'; // Default to production
+
+// Initialize API URL from storage
+async function initializeApiUrl() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['apiBaseUrl'], (result) => {
+      if (result.apiBaseUrl) {
+        API_BASE_URL = result.apiBaseUrl;
+        console.log('📍 Using API URL from storage:', API_BASE_URL);
+      } else {
+        console.log('📍 Using default API URL:', API_BASE_URL);
+      }
+      resolve();
+    });
+  });
+}
+
 const EXTENSION_ID = chrome.runtime.id;
 
 // DOM Elements
@@ -142,6 +160,10 @@ async function checkUserSession() {
 // Initialize popup
 async function init() {
   console.log('=== Popup Init Started ===');
+  
+  // Initialize API URL first (CRITICAL for all network requests)
+  await initializeApiUrl();
+  console.log('✅ API URL initialized:', API_BASE_URL);
   
   // Restore last service from localStorage if available
   const lastService = localStorage.getItem('lastService');

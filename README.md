@@ -236,6 +236,13 @@ ExecOS/
 - **Sharing**: Private or public templates
 - **Performance Tracking**: Usage metrics
 
+### ✅ CSV Export
+- **Plans**: Pro ($19) and Unlimited ($99)
+- **Data**: URL, Service, Research angles, Generated emails, Timestamps
+- **Use Case**: Sales teams, data analysis, bulk imports
+- **Access Control**: Plan-based permissions
+- **Endpoint**: `POST /api/export/csv`
+
 ### ✅ Payment Processing (Stripe)
 - **3 Plans**: Starter ($9), Pro ($29), Unlimited ($99)
 - **Webhooks**: Automatic credit allocation on purchase
