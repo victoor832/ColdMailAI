@@ -115,9 +115,14 @@ export default function HomePage() {
             </div>
             ColdMailAI
           </Link>
-          <Link href={session ? '/dashboard' : '/auth/signin'} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition">
-            {session ? 'Go to Dashboard' : 'Log In'}
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/download-extension" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition shadow-md hover:shadow-lg">
+              Extension
+            </Link>
+            <Link href={session ? '/dashboard' : '/auth/signin'} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition">
+              {session ? 'Go to Dashboard' : 'Log In'}
+            </Link>
+          </div>
         </div>
       </nav>
 
@@ -317,6 +322,51 @@ export default function HomePage() {
       </section>
 
       {/* Final CTA */}
+      {/* Chrome Extension Section */}
+      <section className="py-20 bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-y border-slate-800">
+        <div className="container max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            {/* Left: Content */}
+            <div>
+              <h2 className="text-4xl font-bold mb-4">
+                Research While Browsing
+              </h2>
+              <p className="text-slate-300 mb-6">
+                Install our Chrome extension and get 3 research angles without leaving the website you're on. Perfect for quick prospecting on LinkedIn, company sites, and more.
+              </p>
+              <ul className="space-y-3 mb-8 text-slate-300">
+                <li className="flex items-center gap-3">
+                  <span className="text-green-400 font-bold">✓</span>
+                  Analyze any company in 60 seconds
+                </li>
+                <li className="flex items-center gap-3">
+                  <span className="text-green-400 font-bold">✓</span>
+                  Works on any website
+                </li>
+                <li className="flex items-center gap-3">
+                  <span className="text-green-400 font-bold">✓</span>
+                  Save time on research
+                </li>
+              </ul>
+              <Link href="/download-extension">
+                <Button className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-lg font-semibold">
+                  📥 Get Chrome Extension
+                </Button>
+              </Link>
+            </div>
+            
+            {/* Right: Visual */}
+            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-8 text-center">
+              <div className="text-6xl mb-4">🔍</div>
+              <h3 className="text-xl font-bold mb-2">See it in action</h3>
+              <p className="text-slate-400 text-sm">
+                Click "Get Chrome Extension" to download and install. Takes less than 1 minute.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="py-20 bg-slate-900">
         <div className="container max-w-2xl mx-auto">
           <div className="border border-slate-700 rounded-lg p-12 text-center">
