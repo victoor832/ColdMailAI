@@ -9,31 +9,29 @@ export default function DownloadExtensionPage() {
   const [copiedExtensionsUrl, setCopiedExtensionsUrl] = useState(false);
   const isDev = process.env.NODE_ENV === 'development';
   
-  // Reemplaza con tu Extension ID real una vez publicado en Chrome Web Store
-  const extensionId = 'REPLACE_WITH_EXTENSION_ID';
+  // Extension download details
+  const GITHUB_OWNER = 'victoor832';
+  const GITHUB_REPO = 'ColdMailAI';
+  const GITHUB_BRANCH = 'main';
   
-  // Validate extension ID in production
-  if (!isDev && extensionId === 'REPLACE_WITH_EXTENSION_ID') {
-    console.error('Extension ID not configured for production');
-  }
-  
-  const chromeWebStoreUrl = `https://chrome.google.com/webstore/detail/${extensionId}`;
+  const apiDownloadUrl = '/api/download-extension';
+  const githubRepoUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}`;
   const chromeExtensionsUrl = 'chrome://extensions/';
   
-  const handleInstallClick = () => {
-    const newWindow = window.open(chromeWebStoreUrl, '_blank');
-    if (newWindow) newWindow.opener = null;
+  const handleDownloadClick = () => {
+    // Descarga solo la carpeta chrome-extension desde el API endpoint
+    window.location.href = apiDownloadUrl;
   };
 
   const handleCopyUrl = () => {
-    navigator.clipboard.writeText(chromeWebStoreUrl)
+    navigator.clipboard.writeText(githubRepoUrl)
       .then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       })
       .catch((err) => {
         console.error('Failed to copy:', err);
-        alert('Failed to copy URL. Please copy manually: ' + chromeWebStoreUrl);
+        alert('Failed to copy URL. Please copy manually: ' + githubRepoUrl);
       });
   };
 
@@ -91,10 +89,10 @@ export default function DownloadExtensionPage() {
           {/* CTAs */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center py-8">
             <button 
-              onClick={handleInstallClick}
+              onClick={handleDownloadClick}
               className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors shadow-lg hover:shadow-xl text-lg"
             >
-              📥 Install from Chrome Web Store
+              📥 Download from GitHub
             </button>
             <Link href="/research">
               <Button variant="outline" size="lg">
@@ -103,14 +101,12 @@ export default function DownloadExtensionPage() {
             </Link>
           </div>
 
-          {/* Development Notice */}
-          {isDev && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 p-4 rounded text-left max-w-2xl mx-auto">
-              <p className="text-sm text-amber-800 dark:text-amber-200">
-                <strong>💡 Development Note:</strong> The extension ID above is a placeholder. Once you publish to Chrome Web Store, replace <code className="bg-amber-100 dark:bg-amber-800 px-2 py-1 rounded text-xs">REPLACE_WITH_EXTENSION_ID</code> with your actual Extension ID in this file.
-              </p>
-            </div>
-          )}
+          {/* GitHub Notice */}
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 p-4 rounded text-left max-w-2xl mx-auto">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <strong>📦 Download & Install:</strong> Click "Download from GitHub" to get the latest extension code. Then follow the "Load Unpacked" instructions below to install it locally.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -197,65 +193,71 @@ export default function DownloadExtensionPage() {
         <div className="bg-blue-50 dark:bg-blue-900/20 border-t border-b border-blue-200 dark:border-blue-800 py-16">
           <div className="container">
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-8">
-              Testing the Extension (Development)
+              Installation Instructions
             </h2>
 
             <div className="grid md:grid-cols-2 gap-8 max-w-3xl">
-              {/* Option 1: Load Unpacked */}
+              {/* Step 1: Download from GitHub */}
               <div className="space-y-4 p-6 bg-white dark:bg-slate-900 rounded-lg border border-blue-200 dark:border-blue-800">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                  Load Unpacked (Local Development)
+                  Step 1: Download from GitHub
                 </h3>
                 <ol className="space-y-3 text-sm text-slate-600 dark:text-slate-400 list-decimal list-inside">
-                  <li>Copy the extensions URL below</li>
-                  <li>Paste into your address bar and press Enter</li>
-                  <li>Enable "Developer mode" (top right)</li>
-                  <li>Click "Load unpacked"</li>
-                  <li>Select: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">public/chrome-extension</code></li>
+                  <li>Click "📥 Download from GitHub" button above</li>
+                  <li>Extract the ZIP file (unzip ColdMailAI-main.zip)</li>
+                  <li>Navigate to: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">ColdMailAI-main/public/chrome-extension</code></li>
                 </ol>
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-3 rounded text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
-                  <span className="flex-1">{chromeExtensionsUrl}</span>
-                </div>
+                <a
+                  href={`https://github.com/victoor832/ColdMailAI`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded transition-colors text-center"
+                >
+                  🔗 Go to GitHub Repo
+                </a>
+              </div>
+
+              {/* Step 2: Load Unpacked */}
+              <div className="space-y-4 p-6 bg-white dark:bg-slate-900 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                  Step 2: Load Unpacked
+                </h3>
+                <ol className="space-y-3 text-sm text-slate-600 dark:text-slate-400 list-decimal list-inside">
+                  <li>Open <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">chrome://extensions/</code></li>
+                  <li>Enable "Developer mode" (toggle top right)</li>
+                  <li>Click "Load unpacked"</li>
+                  <li>Select the <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">chrome-extension</code> folder</li>
+                </ol>
                 <button
                   onClick={handleCopyExtensionsUrl}
                   className="w-full mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded transition-colors"
                 >
-                  {copiedExtensionsUrl ? '✓ Copied!' : 'Copy URL'}
-                </button>
-              </div>
-
-              {/* Option 2: Web Store (Production) */}
-              <div className="space-y-4 p-6 bg-white dark:bg-slate-900 rounded-lg border border-blue-200 dark:border-blue-800">
-                <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                  Chrome Web Store (Production)
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Once your extension is published:
-                </p>
-                <ol className="space-y-2 text-sm text-slate-600 dark:text-slate-400 list-decimal list-inside">
-                  <li>Get your Extension ID from Web Store</li>
-                  <li>Update <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded text-xs">REPLACE_WITH_EXTENSION_ID</code> in this file</li>
-                  <li>The button above will link to your listing</li>
-                </ol>
-                <button
-                  onClick={handleCopyUrl}
-                  className="w-full mt-4 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white font-semibold rounded transition-colors"
-                >
-                  {copied ? '✓ Copied!' : 'Copy Current URL'}
+                  {copiedExtensionsUrl ? '✓ Copied!' : 'Copy chrome://extensions/'}
                 </button>
               </div>
             </div>
 
-            <div className="mt-8 p-6 bg-blue-100 dark:bg-blue-900/40 rounded-lg border border-blue-300 dark:border-blue-700">
-              <h4 className="font-bold text-slate-900 dark:text-white mb-3">📝 Quick Setup Guide</h4>
+            <div className="mt-8 p-6 bg-blue-100 dark:bg-blue-900/40 rounded-lg border border-blue-300 dark:border-blue-700 max-w-3xl">
+              <h4 className="font-bold text-slate-900 dark:text-white mb-3">🎯 Quick Steps</h4>
               <ol className="space-y-2 text-sm text-slate-700 dark:text-slate-300 list-decimal list-inside">
-                <li>Ensure dev server is running: <code className="bg-blue-200 dark:bg-blue-800 px-2 py-1 rounded text-xs font-mono">pnpm dev</code></li>
-                <li>Run build script: <code className="bg-blue-200 dark:bg-blue-800 px-2 py-1 rounded text-xs font-mono">pnpm run build:extension:dev</code></li>
-                <li>Click "Open chrome://extensions/" button above</li>
-                <li>Load unpacked: select <code className="bg-blue-200 dark:bg-blue-800 px-2 py-1 rounded text-xs font-mono">public/chrome-extension</code></li>
-                <li>Test the extension on any website</li>
+                <li>Download ZIP from GitHub (button above)</li>
+                <li>Extract: <code className="bg-blue-200 dark:bg-blue-800 px-2 py-1 rounded text-xs font-mono">unzip ColdMailAI-main.zip</code></li>
+                <li>Open: <code className="bg-blue-200 dark:bg-blue-800 px-2 py-1 rounded text-xs font-mono">chrome://extensions/</code></li>
+                <li>Load unpacked: <code className="bg-blue-200 dark:bg-blue-800 px-2 py-1 rounded text-xs font-mono">ColdMailAI-main/public/chrome-extension</code></li>
+                <li>Extension will appear in your toolbar! 🎉</li>
               </ol>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Production Notice */}
+      {!isDev && (
+        <div className="bg-green-50 dark:bg-green-900/20 border-t border-b border-green-200 dark:border-green-800 py-12">
+          <div className="container text-center">
+            <p className="text-sm text-green-800 dark:text-green-200">
+              <strong>✅ Production Mode:</strong> Download the extension from GitHub to use it locally, or use the web version on our dashboard.
+            </p>
           </div>
         </div>
       )}
@@ -306,10 +308,10 @@ export default function DownloadExtensionPage() {
           </p>
           
           <button 
-            onClick={handleInstallClick}
+            onClick={handleDownloadClick}
             className="px-8 py-4 bg-white text-blue-600 font-bold rounded-lg hover:bg-gray-100 transition-colors inline-block text-lg"
           >
-            📥 Install Now
+            📥 Download from GitHub
           </button>
         </div>
       </div>
